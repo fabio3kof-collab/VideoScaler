@@ -453,20 +453,35 @@ button {
 
 /* --- Controles ----------------------------------------------------------- */
 
+/*
+ * Envuelve, y al envolver se reparte.
+ *
+ * Un botón flex no se encoge por debajo de su propio texto, así que un grupo
+ * con muchas opciones exigía más ancho del que tiene la columna y el último se
+ * salía de la tarjeta. Con `wrap` baja a una segunda línea, y con `flex-grow`
+ * los de esa línea se estiran hasta llenarla: una rejilla dejaría celdas
+ * vacías, y una celda vacía en un control se lee como un control roto.
+ */
 .seg {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--crease);
   background: var(--mountain);
   box-shadow: inset 0 0 0 var(--crease) var(--mountain);
 }
 
 .seg button {
-  flex: 1;
-  padding: 7px 9px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 8px;
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.03em;
+  /* Sin quiebre dentro de la etiqueta: «75 %» partido en dos líneas se lee
+     como dos cosas. El recorte es la red de seguridad, no el plan. */
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background: var(--sheet-raised);
   color: var(--ink-2);
   transition: background 140ms var(--ease), color 140ms var(--ease);
@@ -849,6 +864,128 @@ input[type='range']:disabled::-webkit-slider-thumb {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--s2);
+}
+
+/* --- El reparto: en qué se gasta el peso objetivo ------------------------- */
+
+/*
+ * Una hoja levantada sobre las filas, no otra tarjeta: dice de dónde salen los
+ * números que las barras de abajo mueven. Va sin cizallamiento porque contiene
+ * una medida, y el brief reserva el paralelogramo a contenedores y controles.
+ */
+.ration {
+  margin-bottom: var(--crease);
+  padding: var(--s4) var(--s4) var(--s3);
+  background: var(--sheet-raised);
+  box-shadow: var(--lift-sm);
+}
+
+.ration-say {
+  margin: 0;
+  max-width: 68ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.ration-say strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/*
+ * El veredicto de densidad se dice con la palabra teñida y no con otra
+ * pastilla: la pastilla ya vive en la barra de masa, y repetir el mismo dato
+ * con la misma forma a dos palmos de distancia lo convierte en ruido. Los
+ * tintes son los de la pastilla, que ya están medidos.
+ */
+/* Anidados bajo .ration-say a propósito: `.ration-say strong` ya fija el color
+   y le gana en especificidad a una clase suelta. */
+.ration-say .verdict-holgado {
+  color: #24512c;
+}
+
+.ration-say .verdict-justo {
+  color: var(--valley-ink);
+}
+
+.ration-say .verdict-apretado {
+  color: #6b2f18;
+}
+
+.split-keys {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin: var(--s4) 0 var(--s1);
+  font-family: var(--spec);
+  font-size: 11px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.split-keys strong {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/*
+ * Los dos únicos destinos del presupuesto, a escala.
+ *
+ * Los dos tramos van en tono medio a propósito: con un relleno claro el video
+ * —que se lleva el noventa y tantos por ciento— parecía la parte vacía de una
+ * barra de progreso, y el audio parecía lo lleno. Aquí no hay vacío: todo lo
+ * que se ve está gastado.
+ *
+ * Van en los dos tintes semánticos y no en los filetes: esta barra informa, y
+ * los filetes miden 1.99:1 contra la hoja — estructura, nunca información. Las
+ * marcas pasan el 3:1 y además dicen lo correcto, porque lo que el objetivo
+ * aprieta es el tramo de video (montaña) y lo que se protege es el audio
+ * (valle).
+ */
+.split {
+  display: flex;
+  gap: var(--crease);
+  height: 16px;
+  background: var(--sheet-sunk);
+  box-shadow: inset 0 0 0 var(--crease) var(--sheet-sunk);
+}
+
+.split span {
+  min-width: 0;
+}
+
+/*
+ * Relleno contra contorno, como las marcas de las filas. Con los dos tintes
+ * semánticos macizos, los tramos median 1.16 entre sí: distinto color, misma
+ * luminosidad, y por tanto el mismo objeto para quien no distingue el tinte.
+ * La diferencia tiene que ser de forma antes que de color aquí también.
+ */
+.split-video {
+  background: var(--mark-mountain);
+}
+
+.split-audio {
+  background: var(--valley);
+  box-shadow: inset 0 0 0 1px var(--mark-valley);
+}
+
+/* Dos rieles para un solo recorte: el inicio y el fin son dos decisiones. */
+.rails {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.rail-cap {
+  display: block;
+  margin-bottom: 1px;
+  font-family: var(--spec);
+  font-size: 10px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
 }
 
 .detail {

@@ -15,14 +15,23 @@ export function Crease({
   label,
   hint,
   value,
+  hidden = false,
   children
 }: {
   kind: 'mountain' | 'valley' | 'none'
   label: string
   hint?: string
   value?: string
+  /**
+   * Una palanca puede mudarse a otra sección según el modo. Se declara aquí y
+   * no envolviendo la fila en el punto de uso porque estas filas son largas:
+   * enterrarlas en una condicional esconde de qué palanca se trata.
+   */
+  hidden?: boolean
   children: ReactNode
-}): JSX.Element {
+}): JSX.Element | null {
+  if (hidden) return null
+
   return (
     <div className={`crease${value === undefined ? ' crease-novalue' : ''}`}>
       {kind === 'none' ? (
@@ -99,6 +108,56 @@ export function Segmented<T extends string>({
           {o.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+/**
+ * Palanca continua.
+ *
+ * Existe para las características que son un recorrido y no un juego de
+ * opciones: ahí lo que el usuario decide es cuánto, no cuál. Los extremos van
+ * rotulados porque un riel sin números no dice hacia dónde se empeora.
+ */
+export function Slider({
+  label,
+  min,
+  max,
+  step = 1,
+  value,
+  onChange,
+  valueText,
+  ends
+}: {
+  label: string
+  min: number
+  max: number
+  step?: number
+  value: number
+  onChange: (v: number) => void
+  /** Lo que anuncia un lector de pantalla: el número solo rara vez se explica. */
+  valueText: string
+  /** Rótulos de los extremos. Se omiten cuando la fila ya dice el recorrido. */
+  ends?: [string, string]
+}): JSX.Element {
+  return (
+    <div className="slider">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        aria-label={label}
+        aria-valuetext={valueText}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+      {ends && (
+        <span className="slider-ends">
+          <span>{ends[0]}</span>
+          <span>{ends[1]}</span>
+        </span>
+      )}
     </div>
   )
 }

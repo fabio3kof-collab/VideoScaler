@@ -95,21 +95,32 @@ const PRESET_EFFICIENCY: Record<string, number> = {
 /** Los encoders por hardware son más rápidos y menos eficientes por bit. */
 const ACCEL_PENALTY = 1.25
 
+/**
+ * Mismo truncamiento a par que aplica el filtro de escalado (`trunc(iw*f/2)*2`
+ * en args.ts), porque muchos códecs exigen dimensiones pares. Redondear aquí
+ * haría que la ventana prometa un alto impar que el archivo nunca va a tener,
+ * y con una barra de resolución continua esa diferencia se ve en cada paso.
+ */
+function even(n: number): number {
+  return Math.max(2, Math.trunc(n / 2) * 2)
+}
+
 export function scaledPixels(scale: ScaleMode, width: number, height: number): [number, number] {
   switch (scale.kind) {
     case 'original':
       return [width, height]
     case 'percent': {
       const f = Math.max(1, Math.min(100, scale.percent)) / 100
-      return [Math.round(width * f), Math.round(height * f)]
+      if (f === 1) return [width, height]
+      return [even(width * f), even(height * f)]
     }
     case 'height': {
       const ratio = width / height
-      return [Math.round(scale.height * ratio), scale.height]
+      return [even(scale.height * ratio), scale.height]
     }
     case 'width': {
       const ratio = height / width
-      return [scale.width, Math.round(scale.width * ratio)]
+      return [scale.width, even(scale.width * ratio)]
     }
     case 'exact':
       return [scale.width, scale.height]

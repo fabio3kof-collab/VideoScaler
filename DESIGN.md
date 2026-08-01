@@ -275,10 +275,10 @@ These are two families, not two colours, and each has a hairline weight and a se
 
 - **Mountain Grey, hairline** (`#b9b6ae`): Every fold line in the interface — the header's bottom rule, the mass bar's top rule, the 1px gaps between crease rows (drawn as the `.creases` container background showing through), input borders, inset hairlines on clipped shapes, and the scrollbar thumb. It measures 1.99:1 on raised sheet: **structural only, never informational.**
 - **Mountain Fill** (`#e6e4de`): The pressed/inactive fill — segmented `:active`, the switch track at rest, the progress track, the disabled commit button's background.
-- **Mountain Mark** (`#7d7970`): The semantic mountain. Used in exactly one place: the filled parallelogram `.crease-mark-mountain`. 4.26:1 on raised sheet.
+- **Mountain Mark** (`#7d7970`): The semantic mountain. Two uses, both informational: the filled parallelogram `.crease-mark-mountain`, and the video share of the split bar in El reparto. 4.26:1 on raised sheet. It is the tone that carries meaning, so it may go anywhere meaning is carried — and nowhere structure is.
 - **Valley Blue** (`#cfe0f2`): The valley fill — the checked switch track, the quiet notice background, the `mass-drop` percentage chip, the `justo` density chip, and the focus underline on fields.
 - **Valley Line** (`#7ba4cd`): The valley hairline — the quiet notice's inset rule, the fold lines in the empty-state packet illustration.
-- **Valley Mark** (`#4272a3`): The semantic valley. Used on the `.crease-mark-valley` outline, on the checked switch's inset rule, and on `.field:focus-within` borders. 4.91:1 on raised sheet.
+- **Valley Mark** (`#4272a3`): The semantic valley. Used on the `.crease-mark-valley` outline, on the checked switch's inset rule, on `.field:focus-within` borders, and as the 1px outline of the split bar's audio share. 4.91:1 on raised sheet.
 - **Valley Ink** (`#2c5479`): Text on any valley fill. 5.88:1 on `#cfe0f2`.
 
 ### Tertiary — signal
@@ -408,9 +408,11 @@ Usage in the built app: commit appears exactly once per screen — "Elegir archi
 
 ### Segmented — `.seg` (the primary control)
 
-The workhorse: eleven of the sixteen crease rows use it. A flex row of buttons separated by 1px gaps over a `--mountain` background, with a matching 1px inset hairline around the group.
+The workhorse: ten of the seventeen crease rows use it. A wrapping flex row of buttons separated by 1px gaps over a `--mountain` background, with a matching 1px inset hairline around the group.
 
-- **Default:** raised sheet, `--ink-2`, 11px/500 at `0.03em`, `7px 9px` padding, `white-space: nowrap`, 140ms transition.
+**The Wrap Rule.** A flex item never shrinks below its own text, so a group whose labels outgrow the control column pushes its last button clean out of the card — which is exactly what the seven-option encoder-effort group did at every window width. The group therefore wraps (`flex-wrap: wrap`) and every button grows into its line (`flex: 1 1 auto`). A grid with `auto-fit` also stops the overflow, and it was tried and rejected: it leaves the tail of the last row as empty `--mountain` cells, and an empty cell inside a control reads as a broken control. Wrapping is the fallback, not the plan — a group that needs more than about six short labels is a scale, and scales are sliders.
+
+- **Default:** raised sheet, `--ink-2`, 11px/500 at `0.03em`, `7px 8px` padding, `white-space: nowrap` with `overflow: hidden; text-overflow: ellipsis` as a last-resort guard, 140ms transition. Labels never break mid-word: «75 %» split across two lines reads as two things.
 - **Hover** (`:not([aria-checked='true'])`): `#f1efe9` and `--ink`. The hover fill deliberately differs from the selected fill — if they matched, hovering would look like choosing.
 - **Active** (`:not([aria-checked='true'])`): `--mountain-fill`.
 - **Selected** (`[aria-checked='true']`): `--sheet-sunk`, `--ink`, weight 600, plus `inset 0 -2px 0 var(--ink)` as an underline. Neutral by rule — see The Neutral Selection Rule.
@@ -441,9 +443,13 @@ A flex composite: a mono number input plus a static unit suffix. The wrapper car
 
 Used for: target size (MB), video bitrate (kbps), trim from/to (s).
 
-### Range slider — `input[type='range']`
+### Range slider — `Slider` / `.slider`
 
-WebKit pseudo-elements only (`::-webkit-slider-runnable-track`, `::-webkit-slider-thumb`) — legitimate, since the only runtime is Chromium inside Electron. A 3px `--mountain` track with a 15×15 ink thumb clipped to a parallelogram (`32%/68%`), `margin-top: -6px` to centre it. Disabled thumbs go `--mountain` (again unreachable in current composition). Below it, `.slider-ends` labels both extremes in 10px uppercase `--ink-3`. `aria-valuetext` spells the scale out in a sentence, because a bare CRF number means nothing spoken aloud.
+WebKit pseudo-elements only (`::-webkit-slider-runnable-track`, `::-webkit-slider-thumb`) — legitimate, since the only runtime is Chromium inside Electron. A 3px `--mountain` track with a 15×15 ink thumb clipped to a parallelogram (`32%/68%`), `margin-top: -6px` to centre it. Disabled thumbs go `--mountain` (again unreachable in current composition). Below it, `.slider-ends` labels both extremes in 10px uppercase `--ink-3`; `ends` is optional and is omitted when the row already states the travel. `aria-valuetext` is required and spells the scale out in a sentence, because a bare CRF number or step index means nothing spoken aloud.
+
+**When a lever is a slider rather than a segmented group.** The question the control answers decides it: *how much* is a slider, *which one* is a segmented group. Named steps do not make a scale categorical — encoder effort has seven names but they are one ordered axis, so it is a slider whose current step name lives in the value column. Codec, container and audio mode are genuinely different things, so they stay segmented.
+
+Eight instances: calidad; esfuerzo del encoder; and, inside El reparto, resolución, cuadros por segundo, bitrate de audio, and the two trim rails.
 
 ### Crease row — `.crease` (signature component)
 
@@ -453,6 +459,7 @@ The unit of the whole interface, and the carrier of the fold semantics.
 - **Mark, mountain:** 22×13 solid `--mark-mountain` parallelogram (`30%/70%`), `role="img"`, `aria-label="Quita peso"`.
 - **Mark, valley:** 22×13 transparent box, 1.5px `--mark-valley` border with a 4px top edge, `skewX(-17deg)`, `role="img"`, `aria-label="Preserva calidad"`.
 - **States:** none. Crease rows are containers, not controls — no hover, no focus, no active. Interaction lives entirely in the control they hold.
+- **`hidden`:** a row can be declared absent for the current mode and renders `null`. It exists because four levers move into El reparto while the target weight is the input, and burying a fifty-line row inside a conditional at the call site hides which lever it is. One lever, one control, always: a row that moved must be hidden where it came from, never duplicated.
 
 **Assignment rules for `kind` (get this right; it was a review defect):**
 
@@ -463,6 +470,20 @@ The unit of the whole interface, and the carrier of the fold semantics.
 | `none` | Changes neither weight nor quality | "Is this a container/plumbing choice?" | Cómo decidir el peso, Contenedor, Aceleración por hardware, Optimizar para reproducción web |
 
 Two subtleties the code already encodes and new rows must respect: *Códec* is mountain because a better codec buys smaller output, not because it is a quality knob; *Aceleración por hardware* is `none` even though its hint admits it is "algo más pesado", because it is a speed/plumbing choice rather than a weight lever the user pulls for weight.
+
+Four of the mountain rows — Resolución, Cuadros por segundo, Bitrate de audio and Recorte — are not always in the sections listed above: in `targetSize` mode they move into El reparto and are `hidden` where they normally sit.
+
+### El reparto — `.ration` / `.split`
+
+Only in `targetSize` mode, and only because that mode has something to confess: the weight is an input, so something has to give, and what gives is the video bitrate — silently, until this panel. It answers two questions in order: *what changed to reach this weight*, and *is that enough*.
+
+- **Structure:** a raised sheet (`--lift-sm`, no shear — it holds a measure) carrying a sentence, a two-key line, and the split bar; then the four crease rows that moved here, in their normal `.creases` container so the panel reads as one continuous sheet.
+- **The sentence, `.ration-say`:** states the derived bitrate and then names the verdict in words — «ese bitrate va *justo*» — tinted with the density hues (`.ration-say .verdict-*`, nested to outrank `.ration-say strong`). It is deliberately *not* a second `.density` chip: the chip already lives in the mass bar, and the same fact in the same shape two hand-spans apart is noise. When the target is unreachable the sentence says so instead, naming the 100 kbps floor.
+- **The split bar, `.split`:** the only two destinations of the budget, to scale, with their keys above it (left/right, mapping to the segments). 16px tall, 1px `--sheet-sunk` gap, `flex-grow` set from bytes.
+
+**The bar's two shares are marks, not hairlines.** It carries information, so it may not use the fold hairlines — `--mountain` measures 1.99:1 on raised sheet and is structural only. It uses the semantic marks, which clear 3:1 and also happen to say the right thing: the target squeezes the video share (mountain), and the audio share is what you protect (valley). Solid `--mark-mountain` for video; `--valley` fill with a 1px `--mark-valley` inset for audio — **filled against outlined, exactly as the row marks do it.** Both marks solid measured 1.16 against each other: same lightness, different hue, therefore the same object to anyone who cannot separate the tints. Form first, colour second, here as everywhere.
+
+- **Trim, `.rails`:** two rails, because a start and an end are two decisions and a native range input has one thumb. Their captions (`.rail-cap`, 10px mono) carry the live times, so the rails need no `ends`.
 
 ### Fold legend — `.legend`
 

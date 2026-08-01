@@ -5,7 +5,6 @@ import type {
   AudioMode,
   Container,
   EncodeOptions,
-  EncodePreset,
   FfmpegStatus,
   HardwareAccel,
   JobProgress,
@@ -18,8 +17,9 @@ import type {
 import { DEFAULT_OPTIONS, QUALITY_RANGE, formatBytes, formatDuration } from './defaults'
 import { estimateWeight, scaledPixels } from './estimate'
 import { explain, type FriendlyError } from './errors'
-import { Crease, Segmented, Switch } from './Crease'
+import { Crease, Segmented, Slider, Switch } from './Crease'
 import { Packet } from './Packet'
+import { Ration } from './Ration'
 import {
   IconAlert,
   IconArrow,
@@ -182,6 +182,14 @@ export default function App(): JSX.Element {
 
   const estimate = useMemo(() => (probe ? estimateWeight(options, probe) : null), [options, probe])
   const range = QUALITY_RANGE[options.video.codec]
+  /* Las palancas del presupuesto viven en El reparto mientras el peso sea la
+     entrada; fuera de ese modo vuelven a su fila de siempre. */
+  const targetMode = options.video.rateMode === 'targetSize'
+  const presetStep = Math.max(
+    0,
+    PRESETS.findIndex((p) => p.value === options.video.preset)
+  )
+  const presetLabel = PRESETS[presetStep]?.label ?? ''
   const sourceHeight = probe?.video?.height ?? 0
 
   const scaleValue = useMemo(() => {
@@ -450,35 +458,40 @@ export default function App(): JSX.Element {
                   </Crease>
                 )}
 
-                <Crease
-                  kind="mountain"
-                  label="Resolución"
-                  hint="Menos píxeles es menos peso, y es la palanca más fuerte."
-                  value={outDims ?? ''}
-                >
-                  <Segmented
+                {/* En modo peso objetivo la resolución se ajusta con barra en
+                    El reparto, junto al resto del presupuesto. Aquí se oculta
+                    para que la palanca no tenga dos controles distintos. */}
+                {options.video.rateMode !== 'targetSize' && (
+                  <Crease
+                    kind="mountain"
                     label="Resolución"
-                    value={scaleValue}
-                    onChange={(v) =>
-                      setVideo({
-                        scale:
-                          v === 'original'
-                            ? { kind: 'original' }
-                            : v.startsWith('p')
-                              ? { kind: 'percent', percent: Number(v.slice(1)) }
-                              : { kind: 'height', height: Number(v.slice(1)) }
-                      })
-                    }
-                    options={[
-                      { value: 'original', label: 'Original' },
-                      { value: 'p75', label: '75 %' },
-                      { value: 'p50', label: '50 %' },
-                      ...[1080, 720, 480]
-                        .filter((h) => h < sourceHeight)
-                        .map((h) => ({ value: `h${h}`, label: `${h}p` }))
-                    ]}
-                  />
-                </Crease>
+                    hint="Menos píxeles es menos peso, y es la palanca más fuerte."
+                    value={outDims ?? ''}
+                  >
+                    <Segmented
+                      label="Resolución"
+                      value={scaleValue}
+                      onChange={(v) =>
+                        setVideo({
+                          scale:
+                            v === 'original'
+                              ? { kind: 'original' }
+                              : v.startsWith('p')
+                                ? { kind: 'percent', percent: Number(v.slice(1)) }
+                                : { kind: 'height', height: Number(v.slice(1)) }
+                        })
+                      }
+                      options={[
+                        { value: 'original', label: 'Original' },
+                        { value: 'p75', label: '75 %' },
+                        { value: 'p50', label: '50 %' },
+                        ...[1080, 720, 480]
+                          .filter((h) => h < sourceHeight)
+                          .map((h) => ({ value: `h${h}`, label: `${h}p` }))
+                      ]}
+                    />
+                  </Crease>
+                )}
 
                 <Crease
                   kind="mountain"
@@ -496,6 +509,17 @@ export default function App(): JSX.Element {
                 </Crease>
               </div>
             </section>
+
+            {targetMode && estimate && (
+              <Ration
+                options={options}
+                probe={probe}
+                estimate={estimate}
+                onVideo={setVideo}
+                onAudio={setAudio}
+                onTrim={(trim) => setOptions((o) => ({ ...o, trim }))}
+              />
+            )}
 
             <section>
               <button
@@ -516,11 +540,15 @@ export default function App(): JSX.Element {
                     {legend}
                   </div>
                   <div className="creases deployed">
+                    {/* Recorte, cuadros por segundo y bitrate de audio se
+                        ajustan con barra en El reparto mientras el peso sea la
+                        entrada, así que aquí no se repiten. */}
                     <Crease
                       kind="mountain"
                       label="Recorte"
                       hint="Menos duración es menos peso, sin tocar la imagen."
                       value={formatDuration(trimmedDuration)}
+                      hidden={targetMode}
                     >
                       <div className="pair">
                         <label className="pair-field">
@@ -576,16 +604,27 @@ export default function App(): JSX.Element {
                       </div>
                     </Crease>
 
+                    {/* Barra y no botones: son siete pasos de una misma escala,
+                        y siete etiquetas con nombre no caben en la columna a
+                        ninguna anchura de ventana. Lo que se elige aquí es
+                        cuánto esfuerzo, no cuál de siete cosas. */}
                     <Crease
                       kind="mountain"
                       label="Esfuerzo del encoder"
                       hint="Más lento aprovecha mejor cada bit, al mismo peso."
+                      value={presetLabel}
                     >
-                      <Segmented
+                      <Slider
                         label="Esfuerzo del encoder"
-                        value={options.video.preset}
-                        onChange={(v: EncodePreset) => setVideo({ preset: v })}
-                        options={PRESETS}
+                        min={0}
+                        max={PRESETS.length - 1}
+                        value={presetStep}
+                        valueText={`${presetLabel}, paso ${presetStep + 1} de ${PRESETS.length}`}
+                        ends={['Inmediato', 'Máximo']}
+                        onChange={(i) => {
+                          const step = PRESETS[i]
+                          if (step) setVideo({ preset: step.value })
+                        }}
                       />
                     </Crease>
 
@@ -606,6 +645,7 @@ export default function App(): JSX.Element {
                       label="Cuadros por segundo"
                       hint="Bajarlo quita peso y hace el movimiento menos fluido."
                       value={options.video.fps === null ? 'original' : `${options.video.fps}/s`}
+                      hidden={targetMode}
                     >
                       <Segmented
                         label="Cuadros por segundo"
@@ -691,6 +731,7 @@ export default function App(): JSX.Element {
                           kind="mountain"
                           label="Bitrate de audio"
                           hint="Kilobits por segundo dedicados al sonido."
+                          hidden={targetMode}
                         >
                           <Segmented
                             label="Bitrate de audio en kilobits por segundo"
