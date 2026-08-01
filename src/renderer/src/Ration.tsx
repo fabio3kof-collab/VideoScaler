@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import type { EncodeOptions, MediaProbe } from '@shared/types'
-import { MIN_VIDEO_KBPS } from '@shared/budget'
+import { MIN_VIDEO_KBPS, targetSizeForVideoKbps } from '@shared/budget'
 import type { WeightEstimate } from './estimate'
 import { scaledPixels } from './estimate'
 import { formatDuration } from './defaults'
@@ -81,6 +81,20 @@ export function Ration({
   const audioBytes = Math.max(0, estimate.audioOnlyBytes)
   const videoBytes = Math.max(0, estimate.bytes - audioBytes)
 
+  // El techo del bitrate es el ritmo del propio archivo de origen: pedir más
+  // que eso sólo produce un archivo más pesado que el original.
+  const originalKbps = Math.round((probe.sizeBytes * 8) / Math.max(1, probe.durationSec) / 1000)
+  const bitrateMax = Math.max(MIN_VIDEO_KBPS + 400, originalKbps)
+  const bitrateStep = bitrateMax > 6000 ? 50 : 10
+
+  /*
+   * La holgura se dibuja hasta 1.5 veces la referencia, con una marca en la
+   * referencia misma. Recortarla ahí es lo honesto: por encima el modelo deja
+   * de distinguir nada útil, y BPP_REFERENCE no está calibrado contra
+   * codificaciones medidas, así que poner cifras sería precisión inventada.
+   */
+  const gaugeFill = Math.min(1, Math.max(0, estimate.headroom / 1.5))
+
   return (
     <section>
       {/* Sin leyenda de pliegues: las cuatro filas son montaña, así que la
@@ -93,12 +107,9 @@ export function Ration({
         <p className="ration-say">
           {estimate.reachable ? (
             <>
-              Para caber en <strong>{options.video.targetSizeMB} MB</strong>, el video baja a{' '}
-              <strong>{estimate.videoKbps} kbps</strong>. Con {outW}×{outH} a {fpsValue}/s, ese
-              bitrate va <strong className={`verdict verdict-${estimate.density}`}>
-                {estimate.density}
-              </strong>
-              .
+              Para caber en <strong>{options.video.targetSizeMB} MB</strong>, el video va a{' '}
+              <strong>{estimate.videoKbps} kbps</strong>. Bajar la resolución, los cuadros o el
+              audio no cambia el peso — cambia cuánto le rinde ese bitrate.
             </>
           ) : (
             <>
@@ -107,6 +118,24 @@ export function Ration({
               Baja el audio o recorta el video.
             </>
           )}
+        </p>
+
+        {/* La lectura que sí se mueve con cada palanca cuando el peso no puede
+            moverse. Va primero por eso: es la respuesta a «¿y esto qué hizo?». */}
+        <p className="split-keys">
+          <span>Holgura de la imagen</span>
+          <strong className={`verdict verdict-${estimate.density}`}>{estimate.density}</strong>
+        </p>
+        <div
+          className={`gauge gauge-${estimate.density}`}
+          role="img"
+          aria-label={`Holgura de la imagen: ${estimate.density}. ${estimate.videoKbps} kilobits por segundo para ${outW} por ${outH} a ${fpsValue} cuadros.`}
+        >
+          <span className="gauge-fill" style={{ transform: `scaleX(${gaugeFill})` }} />
+          <span className="gauge-ref" />
+        </div>
+        <p className="gauge-note">
+          {estimate.videoKbps} kbps para {outW}×{outH} a {fpsValue}/s
         </p>
 
         <p className="split-keys">
@@ -129,6 +158,36 @@ export function Ration({
       </div>
 
       <div className="creases">
+        {/*
+          El peso y el bitrate son el mismo número por dos caras, así que esta
+          barra escribe sobre el objetivo en MB y el campo de MB mueve esta
+          barra. No hay dos fuentes de verdad: hay una, con dos entradas.
+        */}
+        <Crease
+          kind="mountain"
+          label="Bitrate de video"
+          hint="El peso objetivo, dicho por segundo. Moverlo mueve el objetivo."
+          value={`${estimate.videoKbps} kbps`}
+        >
+          <Slider
+            label="Bitrate de video"
+            min={MIN_VIDEO_KBPS}
+            max={bitrateMax}
+            step={bitrateStep}
+            value={Math.min(Math.max(estimate.videoKbps, MIN_VIDEO_KBPS), bitrateMax)}
+            valueText={`${estimate.videoKbps} kilobits por segundo, que son ${options.video.targetSizeMB} megabytes`}
+            ends={[`${MIN_VIDEO_KBPS} kbps`, `${bitrateMax} kbps`]}
+            onChange={(v) =>
+              onVideo({
+                targetSizeMB: Math.max(
+                  1,
+                  Math.round(targetSizeForVideoKbps(v, options, probe) * 100) / 100
+                )
+              })
+            }
+          />
+        </Crease>
+
         <Crease
           kind="mountain"
           label="Resolución"

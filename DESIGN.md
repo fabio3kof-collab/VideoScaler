@@ -449,7 +449,7 @@ WebKit pseudo-elements only (`::-webkit-slider-runnable-track`, `::-webkit-slide
 
 **When a lever is a slider rather than a segmented group.** The question the control answers decides it: *how much* is a slider, *which one* is a segmented group. Named steps do not make a scale categorical — encoder effort has seven names but they are one ordered axis, so it is a slider whose current step name lives in the value column. Codec, container and audio mode are genuinely different things, so they stay segmented.
 
-Eight instances: calidad; esfuerzo del encoder; and, inside El reparto, resolución, cuadros por segundo, bitrate de audio, and the two trim rails.
+Nine instances: calidad; esfuerzo del encoder; and, inside El reparto, bitrate de video, resolución, cuadros por segundo, bitrate de audio, and the two trim rails.
 
 ### Crease row — `.crease` (signature component)
 
@@ -478,12 +478,15 @@ Four of the mountain rows — Resolución, Cuadros por segundo, Bitrate de audio
 Only in `targetSize` mode, and only because that mode has something to confess: the weight is an input, so something has to give, and what gives is the video bitrate — silently, until this panel. It answers two questions in order: *what changed to reach this weight*, and *is that enough*.
 
 - **Structure:** a raised sheet (`--lift-sm`, no shear — it holds a measure) carrying a sentence, a two-key line, and the split bar; then the four crease rows that moved here, in their normal `.creases` container so the panel reads as one continuous sheet.
-- **The sentence, `.ration-say`:** states the derived bitrate and then names the verdict in words — «ese bitrate va *justo*» — tinted with the density hues (`.ration-say .verdict-*`, nested to outrank `.ration-say strong`). It is deliberately *not* a second `.density` chip: the chip already lives in the mass bar, and the same fact in the same shape two hand-spans apart is noise. When the target is unreachable the sentence says so instead, naming the 100 kbps floor.
+- **The sentence, `.ration-say`:** states the derived bitrate and then answers, in words, the question this mode always provokes: *«bajar la resolución, los cuadros o el audio no cambia el peso — cambia cuánto le rinde ese bitrate»*. That sentence exists because the confusion is guaranteed, not hypothetical: a user who drags a slider and sees the weight sit still concludes the slider is broken. When the target is unreachable the sentence says so instead, naming the 100 kbps floor.
+- **The headroom gauge, `.gauge`:** the only reading that moves when the weight cannot. An 8px track with a fill scaled to `headroom / 1.5` and a 1px `--ink-2` tick at the codec's reference (66.67%): left of it the picture is starved, right of it it is comfortable. The verdict word sits above it, tinted (`.ration .verdict-*`, nested to outrank `.ration-say strong` and `.split-keys strong`); the fill carries the same three hues as reinforcement, never as the sole carrier — length and word both say it too. **No numbers on it, ever.** `BPP_REFERENCE` is uncalibrated, so a percentage would be invented precision; a bar that moves says the only thing actually known — more or less than before, and which side of the reference. The exact facts go in `.gauge-note` beneath, where they are exact: kbps, dimensions, frame rate.
 - **The split bar, `.split`:** the only two destinations of the budget, to scale, with their keys above it (left/right, mapping to the segments). 16px tall, 1px `--sheet-sunk` gap, `flex-grow` set from bytes.
 
 **The bar's two shares are marks, not hairlines.** It carries information, so it may not use the fold hairlines — `--mountain` measures 1.99:1 on raised sheet and is structural only. It uses the semantic marks, which clear 3:1 and also happen to say the right thing: the target squeezes the video share (mountain), and the audio share is what you protect (valley). Solid `--mark-mountain` for video; `--valley` fill with a 1px `--mark-valley` inset for audio — **filled against outlined, exactly as the row marks do it.** Both marks solid measured 1.16 against each other: same lightness, different hue, therefore the same object to anyone who cannot separate the tints. Form first, colour second, here as everywhere.
 
 - **Trim, `.rails`:** two rails, because a start and an end are two decisions and a native range input has one thumb. Their captions (`.rail-cap`, 10px mono) carry the live times, so the rails need no `ends`.
+
+**Weight and bitrate are one number with two faces.** The Bitrate de video row is not a second setting that could disagree with the MB field: it writes back through `targetSizeForVideoKbps`, the exact algebraic inverse of `budgetForTargetSize`, so dragging the bar moves the target and typing the target moves the bar. Both directions live in `shared/budget.ts`, next to each other — put one of them in the renderer and they drift. The MB field steps in tenths for the same reason: on a short clip a whole megabyte is hundreds of kbps, and the bar would snap. Its ceiling is the source file's own average rate, because asking for more than that only makes an output heavier than the input.
 
 ### Fold legend — `.legend`
 
@@ -511,7 +514,16 @@ Both readout groups are `aria-live="polite" aria-atomic="true"`, so a screen rea
 A flex row: icon (flex-none, 2px top nudge) + text at 13px/1.5, `12px 18px` padding, 1px inset hairline.
 
 - **Alert** (default): `--alert-fill` background, `#6b2416` text, `--alert` icon, `#e0bdb1` hairline. Used for missing FFmpeg, load/encode errors, unreachable target, and update failure.
-- **Quiet** (`.notice-quiet`): valley fill, valley ink, valley-line hairline. Used for update-ready, update-downloading, and "compression stopped, original intact".
+- **Quiet** (`.notice-quiet`): valley fill, valley ink, valley-line hairline. Used for "compression stopped, original intact". It no longer carries update-ready or update-downloading: those live on the header button, which is visible with no file loaded — the notices were not.
+
+### Update button — `.bar-update`
+
+One quiet button beside the wordmark, carrying all five update states in its own label: *Buscar actualizaciones* → *Buscando…* → *Descargando N %* → *Reiniciar e instalar X* → *Ya estás al día* (five seconds, then back). Errors turn it into *Reintentar la búsqueda*; the alert notice in the body still supplies the technical detail.
+
+- **Placed by ownership, not by symmetry.** It sits at the left, next to the title, because it acts on the *application*; `Otro archivo` sits at the right because it acts on the *file*. The version note stays at the far right as a label, not a control.
+- **It is the only place update state is told.** The body notices were removed rather than kept in sync — the empty state renders no body at all, so a user who had opened the app without a file could never learn a new version existed.
+- **The working animation:** `@keyframes sweep` runs a 2px `--mark-valley` fold across the foot of the button, clipped by the button's own parallelogram. Nothing spins in this world; the piece that is working says so itself, the same way the packet breathes while a file is probed. Under `prefers-reduced-motion` the fold stops but stays at full width — silencing it would leave the button mute, which is worse than still.
+- **Disabled is now reachable.** `.act-quiet:disabled` was provisioned but never rendered; while checking or downloading, this button is genuinely disabled.
 - Error notices reveal technical detail behind a `.link` toggle ("Ver detalle técnico"), rendered into `.detail` — mono at width 82% on `rgba(255,255,255,0.6)` with `overflow-wrap: anywhere`.
 
 ### Progress — `.progress-track` / `.progress-fill`
@@ -528,9 +540,9 @@ A fixed, pointer-events-none overlay with a 3px `--foil` border and a `rgba(212,
 
 ### Icons — `Icons.tsx`
 
-Eight hand-drawn icons, no library, no unicode glyphs. Shared base: **16×16, `viewBox="0 0 16 16"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={1.25}`, round cap and join.** Every icon inherits its colour from context, so an icon inside a foil button is foil-ink and an icon inside an alert is `--alert`.
+Nine hand-drawn icons, no library, no unicode glyphs. Shared base: **16×16, `viewBox="0 0 16 16"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={1.25}`, round cap and join.** Every icon inherits its colour from context, so an icon inside a foil button is foil-ink and an icon inside an alert is `--alert`.
 
-The grammar is straight edges and pattern-consistent angles: `IconPacket` is the folded packet (the wordmark and the empty-state thesis), `IconSheet` is four cells of the pattern (the deploy toggle), `IconArrow` is direction, `IconChevron` rotates 180° when the sheet deploys, plus `IconAlert`, `IconFolder`, `IconStop`, `IconCheck`. New icons must be drawn to the same base, at the same 1.25 stroke, with no curves and no fills — a rounded library glyph gives itself away instantly in a world made of creases.
+The grammar is straight edges and pattern-consistent angles: `IconPacket` is the folded packet (the wordmark and the empty-state thesis), `IconSheet` is four cells of the pattern (the deploy toggle), `IconArrow` is direction, `IconChevron` rotates 180° when the sheet deploys, plus `IconAlert`, `IconFolder`, `IconStop`, `IconCheck`, and `IconUpdate` — a straight shaft, a chevron head and a ground line, deliberately *not* the circular arrow every library uses for "reload", because a single curve would give itself away among nothing but creases. New icons must be drawn to the same base, at the same 1.25 stroke, with no curves and no fills — a rounded library glyph gives itself away instantly in a world made of creases.
 
 ### Motion
 
@@ -544,12 +556,14 @@ One easing token: `--ease: cubic-bezier(0.16, 1, 0.3, 1)` — a fast-out, long-s
 | Deploy chevron rotate | 260ms | `--ease` |
 | Progress fill scaleX | 320ms | `linear` |
 | Crease row unfold | 420ms | `--ease` |
+| Headroom gauge fill + tint | 160ms | `--ease` |
+| Update fold sweep (checking) | 1.15s loop | `--ease` |
 | Packet pulse (drag) | 1.2s loop | `--ease` |
 | Packet breathe (probing) | 1.8s loop | `ease-in-out` |
 
 **The unfold.** The authored moment: opening "Desplegar la hoja" runs `@keyframes unfold` on every `.crease` inside `.deployed` — `opacity 0 → 1`, `translateY(-7px) → 0`, and a `clip-path` polygon opening from the top edge downward, with `animation-fill-mode: backwards`. Rows are staggered **32ms apart** by `:nth-child`, from 0ms through 224ms for rows 1–8, and every row from the ninth on is clamped to 256ms so a long sheet does not turn into a slow wipe.
 
-**Reduced motion** (`prefers-reduced-motion: reduce`): all transitions are forced to `1ms`; the two infinite decorative loops are set to `animation: none` (shortening an infinite loop only speeds it up, it does not stop it); the unfold is collapsed to `1ms` duration with `0ms` delay, so the rows still arrive — instantly.
+**Reduced motion** (`prefers-reduced-motion: reduce`): all transitions are forced to `1ms`; the two *decorative* infinite loops are set to `animation: none` — the update sweep is not decorative, so it is stopped but left visible at full width (shortening an infinite loop only speeds it up, it does not stop it); the unfold is collapsed to `1ms` duration with `0ms` delay, so the rows still arrive — instantly.
 
 ### Focus
 
@@ -601,7 +615,7 @@ Recorded as found in the built code, not smoothed over.
 
 1. **The stated 60° shear does not exist in any component.** `index.html`'s direction contract says "Cizallamiento 60°", and the background lattice does use a literal `60deg`. But no clipped component is at 60°: the shear angle is set per-component by a px notch or a percentage, producing roughly 71° (`.act`, 13px over ~38px), 69° (`.switch`), 74° (switch knob), 72° (range thumb), 65° (chips), 63° (mountain mark) and 73° (valley mark, the one `skewX(-17deg)`). There is no shared angle token. Treat "60°" as directional intent; the real invariant is "consistently sheared to the right", not a specific angle.
 
-2. **Disabled states are styled but unreachable.** `.act-quiet:disabled`, `.seg button:disabled`, `.switch:disabled` and `input[type='range']:disabled` all have rules, but `Segmented` and `Switch` expose no `disabled` prop and no `.act-quiet` in `App.tsx` is ever rendered disabled. Only `.act-commit:disabled` is live (running, or FFmpeg missing). The rest are provisioned, not proven — verify them before relying on them.
+2. **Some disabled states are styled but unreachable.** `.seg button:disabled`, `.switch:disabled` and `input[type='range']:disabled` all have rules, but `Segmented`, `Switch` and `Slider` expose no `disabled` prop. Live now: `.act-commit:disabled` (running, or FFmpeg missing) and `.act-quiet:disabled` (the update button while checking or downloading). The rest are provisioned, not proven — verify them before relying on them.
 
 3. **`.num:focus` is effectively dead.** Every `.num` in `App.tsx` is wrapped in `.field`, and `.field .num` zeroes the border while `.field .num:focus` zeroes the box-shadow. The standalone `.num:focus` rule (border `--valley-line`, valley underline) can never fire as written. It also uses a different blue (`--valley-line #7ba4cd`) than the wrapper's `.field:focus-within` (`--mark-valley #4272a3`) for the same affordance.
 

@@ -34,26 +34,36 @@ export interface WeightEstimate {
   /** Sólo cuando no alcanza: cuánto pide el audio por sí solo, en bytes. */
   audioOnlyBytes: number
   density: Density
+  /** Bits por píxel relativos a la referencia del códec. 1 = referencia. */
+  headroom: number
 }
 
-function densityOf(
-  videoKbps: number,
-  options: EncodeOptions,
-  probe: MediaProbe
-): Density {
-  if (!probe.video) return 'justo'
+/**
+ * Cuántos bits recibe cada píxel, relativo a lo que ese códec necesita para su
+ * calidad de referencia. 1 = referencia; por debajo de 1 el video va corto.
+ *
+ * Se devuelve el número y no sólo su cajón porque es la única lectura que
+ * responde a cada paso de resolución, cuadros o audio cuando el peso está
+ * fijado. En tres estados casi nunca cambia, y una palanca que no acusa el
+ * golpe parece rota.
+ */
+function headroomOf(videoKbps: number, options: EncodeOptions, probe: MediaProbe): number {
+  if (!probe.video) return 1
   const [w, h] = scaledPixels(options.video.scale, probe.video.width, probe.video.height)
   const fps = options.video.fps ?? probe.video.fps ?? 30
   const pixels = w * h * fps
-  if (pixels <= 0) return 'justo'
+  if (pixels <= 0) return 1
   const bpp = (videoKbps * 1000) / pixels
   const reference =
     BPP_REFERENCE *
     CODEC_EFFICIENCY[options.video.codec] *
     (PRESET_EFFICIENCY[options.video.preset] ?? 1)
-  const ratio = bpp / reference
-  if (ratio >= 1) return 'holgado'
-  if (ratio >= 0.5) return 'justo'
+  return bpp / reference
+}
+
+function densityFrom(headroom: number): Density {
+  if (headroom >= 1) return 'holgado'
+  if (headroom >= 0.5) return 'justo'
   return 'apretado'
 }
 
@@ -137,6 +147,7 @@ export function estimateWeight(options: EncodeOptions, probe: MediaProbe): Weigh
 
   if (video.rateMode === 'targetSize') {
     const budget = budgetForTargetSize(options, probe)
+    const headroom = headroomOf(budget.videoKbps, options, probe)
     return {
       bytes: budget.bytes,
       // Ni siquiera este modo es exacto: el control de tasa de FFmpeg se
@@ -147,7 +158,8 @@ export function estimateWeight(options: EncodeOptions, probe: MediaProbe): Weigh
       audioKbps: Math.round(budget.audioKbps),
       reachable: budget.reachable,
       audioOnlyBytes,
-      density: densityOf(budget.videoKbps, options, probe)
+      density: densityFrom(headroom),
+      headroom
     }
   }
 
@@ -172,6 +184,7 @@ export function estimateWeight(options: EncodeOptions, probe: MediaProbe): Weigh
   }
 
   const bytes = ((vKbps + aKbps) * 1000 * duration) / 8
+  const headroom = headroomOf(vKbps, options, probe)
   return {
     bytes,
     confidence,
@@ -180,6 +193,7 @@ export function estimateWeight(options: EncodeOptions, probe: MediaProbe): Weigh
     audioKbps: Math.round(aKbps),
     reachable: true,
     audioOnlyBytes,
-    density: densityOf(vKbps, options, probe)
+    density: densityFrom(headroom),
+    headroom
   }
 }

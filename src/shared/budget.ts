@@ -54,6 +54,26 @@ export interface Budget {
  * pedido sale negativo: se aplica un piso y se marca `reachable: false` para
  * que la interfaz lo diga en vez de entregar un archivo que no cumple.
  */
+/**
+ * La inversa: qué objetivo de peso corresponde a un bitrate de video dado.
+ *
+ * En este modo el peso y el bitrate no son dos ajustes, son el mismo número
+ * mirado desde dos lados — el audio y la duración hacen de cambio. Tener la
+ * vuelta aquí, junto a la ida, es lo que impide que las dos direcciones se
+ * desincronicen: si una de las dos viviera en el renderer, acabarían diciendo
+ * cosas distintas.
+ */
+export function targetSizeForVideoKbps(
+  videoKbps: number,
+  options: EncodeOptions,
+  probe: MediaProbe
+): number {
+  const duration = effectiveDuration(options, probe)
+  if (duration <= 0) return options.video.targetSizeMB
+  const bits = (videoKbps + audioKbpsFor(options, probe)) * 1000 * duration
+  return bits / (1024 * 1024 * 8 * HEADROOM)
+}
+
 export function budgetForTargetSize(options: EncodeOptions, probe: MediaProbe): Budget {
   const duration = effectiveDuration(options, probe)
   const audioKbps = audioKbpsFor(options, probe)

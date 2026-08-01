@@ -303,6 +303,59 @@ button {
   cursor: not-allowed;
 }
 
+/* --- Actualización: el botón de la cabecera ------------------------------ */
+
+/*
+ * Junto al título, no al otro extremo: es una acción sobre la aplicación
+ * misma, no sobre el archivo. Y es más pequeño que las acciones del cuerpo
+ * porque no compite con ellas — nadie abre VideoScaler para actualizarlo.
+ */
+.bar-update {
+  position: relative;
+  overflow: hidden;
+  padding: 8px 18px;
+  font-size: 10px;
+}
+
+/*
+ * Mientras busca o descarga, un pliegue recorre el pie del botón.
+ *
+ * No es un disco girando: en esta hoja nada gira. Es la misma idea que el
+ * paquete que respira mientras se sondea un archivo — la pieza que está
+ * trabajando lo dice ella misma, sin pedir prestado un glifo de librería.
+ */
+.bar-update.is-working::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 40%;
+  height: 2px;
+  background: var(--mark-valley);
+  animation: sweep 1.15s var(--ease) infinite;
+}
+
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* Rótulo que sólo existe para quien escucha la interfaz. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 /* --- Ficha de identidad del archivo -------------------------------------- */
 
 .identity {
@@ -899,18 +952,77 @@ input[type='range']:disabled::-webkit-slider-thumb {
  * con la misma forma a dos palmos de distancia lo convierte en ruido. Los
  * tintes son los de la pastilla, que ya están medidos.
  */
-/* Anidados bajo .ration-say a propósito: `.ration-say strong` ya fija el color
-   y le gana en especificidad a una clase suelta. */
-.ration-say .verdict-holgado {
+/* Anidados bajo .ration a propósito: `.ration-say strong` y `.split-keys
+   strong` ya fijan color, y le ganarían a una clase suelta. */
+.ration .verdict-holgado {
   color: #24512c;
 }
 
-.ration-say .verdict-justo {
+.ration .verdict-justo {
   color: var(--valley-ink);
 }
 
-.ration-say .verdict-apretado {
+.ration .verdict-apretado {
   color: #6b2f18;
+}
+
+/*
+ * Holgura: la única lectura que se mueve cuando el peso no puede moverse.
+ *
+ * Va sin cifras a propósito. La constante que la sostiene (BPP_REFERENCE) no
+ * está calibrada contra codificaciones medidas, así que un porcentaje sería
+ * precisión inventada; una barra que se mueve dice lo único que sí se sabe:
+ * más o menos que antes, y de qué lado de la referencia.
+ */
+.gauge {
+  position: relative;
+  height: 8px;
+  background: var(--mountain-fill);
+  overflow: hidden;
+}
+
+.gauge-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  background: var(--mark-mountain);
+  transition: transform 160ms var(--ease), background 160ms var(--ease);
+}
+
+/* El tinte repite lo que ya dicen el largo de la barra y la palabra de al
+   lado. Es refuerzo, nunca el único portador: son los mismos tres tintes de
+   la pastilla de densidad, que ya están medidos. */
+.gauge-holgado .gauge-fill {
+  background: #24512c;
+}
+
+.gauge-justo .gauge-fill {
+  background: var(--mark-valley);
+}
+
+.gauge-apretado .gauge-fill {
+  background: #6b2f18;
+}
+
+/* La referencia del códec, al 1.0 de una escala que llega a 1.5. A la
+   izquierda el video va corto; a la derecha, sobrado. */
+.gauge-ref {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 66.67%;
+  width: 1px;
+  background: var(--ink-2);
+}
+
+.gauge-note {
+  margin: var(--s1) 0 0;
+  font-family: var(--spec);
+  font-size: 10px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
 }
 
 .split-keys {
@@ -1155,6 +1267,13 @@ input[type='range']:disabled::-webkit-slider-thumb {
   .dropping .packet-figure,
   .packet-figure.is-probing {
     animation: none !important;
+  }
+
+  /* El pliegue que recorre el botón se detiene, pero se queda visible: es la
+     única señal de que sigue trabajando, y apagarla dejaría el botón mudo. */
+  .bar-update.is-working::after {
+    animation: none !important;
+    width: 100%;
   }
 
   .deployed .crease {

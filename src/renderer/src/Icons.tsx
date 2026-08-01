@@ -81,6 +81,22 @@ export function IconStop(p: P): JSX.Element {
   )
 }
 
+/**
+ * Actualización: algo que baja hasta la hoja.
+ *
+ * Recta y no circular a propósito. La flecha en círculo es el glifo de librería
+ * para «recargar», y aquí una curva se delataría entre puros pliegues: el
+ * mundo no tiene un solo radio.
+ */
+export function IconUpdate(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M8 2v7.4M5 6.6 8 9.6l3-3" />
+      <path d="M2.6 12.4h10.8" />
+    </svg>
+  )
+}
+
 export function IconCheck(p: P): JSX.Element {
   return (
     <svg {...base} {...p}>

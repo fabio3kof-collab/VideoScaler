@@ -20,6 +20,7 @@ import { explain, type FriendlyError } from './errors'
 import { Crease, Segmented, Slider, Switch } from './Crease'
 import { Packet } from './Packet'
 import { Ration } from './Ration'
+import { Update } from './Update'
 import {
   IconAlert,
   IconArrow,
@@ -244,6 +245,7 @@ export default function App(): JSX.Element {
           <IconPacket aria-hidden="true" />
           VideoScaler
         </span>
+        <Update update={update} />
         <span className="bar-spacer" />
         {probe && (
           <button type="button" className="act act-quiet" onClick={() => void onPick()}>
@@ -269,29 +271,9 @@ export default function App(): JSX.Element {
               </p>
             )}
 
-            {update.status === 'ready' && (
-              <p className="notice notice-quiet">
-                <IconCheck aria-hidden="true" />
-                <span>
-                  La versión {update.version} está lista.{' '}
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() => void window.videoscaler.installUpdate()}
-                  >
-                    Reiniciar para actualizar
-                  </button>
-                </span>
-              </p>
-            )}
-
-            {update.status === 'downloading' && (
-              <p className="notice notice-quiet">
-                <IconArrow aria-hidden="true" />
-                <span>Descargando la actualización… {update.percent}%</span>
-              </p>
-            )}
-
+            {/* Descarga y listo-para-instalar los dice el botón de la cabecera,
+                que además se ve sin archivo cargado. Aquí sólo queda el fallo,
+                porque es el único que necesita explicar algo. */}
             {update.status === 'error' && (
               <p className="notice" role="alert">
                 <IconAlert aria-hidden="true" />
@@ -394,7 +376,9 @@ export default function App(): JSX.Element {
                         className="num"
                         type="number"
                         min={1}
-                        step={1}
+                        /* Décimas porque la barra de bitrate escribe aquí: a
+                           un video corto, 1 MB de salto son cientos de kbps. */
+                        step={0.1}
                         aria-label="Peso objetivo en megabytes"
                         value={options.video.targetSizeMB}
                         onChange={(e) =>
