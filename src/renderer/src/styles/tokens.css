@@ -1,0 +1,109 @@
+/*
+ * Sistema Hoja Miura.
+ *
+ * El patrón Miura tiene dos clases de pliegue, montaña y valle, y esa dualidad
+ * es el sistema de estado del producto: montaña = quita peso, valle = preserva
+ * calidad. No es decoración; cada control vive en un lado.
+ */
+
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 62% 125%;
+  font-display: block;
+  src: url('../assets/fonts/archivo-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 62% 125%;
+  font-display: block;
+  src: url('../assets/fonts/archivo-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Martian Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 75% 112.5%;
+  font-display: block;
+  src: url('../assets/fonts/martianmono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Martian Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 75% 112.5%;
+  font-display: block;
+  src: url('../assets/fonts/martianmono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  /* Hoja */
+  --sheet: #f7f7f7;
+  --sheet-raised: #fdfdfc;
+  --sheet-sunk: #eceae4;
+  --ink: #0a0a0a;
+  --ink-2: #4a4844;
+  --ink-3: #6e6b64;
+
+  /* Pliegues: hairlines y rellenos */
+  --mountain: #b9b6ae;
+  --mountain-fill: #e6e4de;
+  --valley: #cfe0f2;
+  --valley-line: #7ba4cd;
+  --valley-ink: #2c5479;
+
+  /*
+   * Marcas semánticas. Van más oscuras que los filetes del mismo nombre porque
+   * cargan significado y deben pasar el 3:1 de gráficos informativos; además
+   * se distinguen por forma (relleno contra contorno), no sólo por color.
+   */
+  --mark-mountain: #7d7970;
+  --mark-valley: #4272a3;
+
+  /* Foil: reservado a la acción de comprometer. Un solo uso por pantalla. */
+  --foil: #d4af37;
+  --foil-ink: #241c05;
+
+  /* Señal */
+  --alert: #a33a22;
+  --alert-fill: #f6e6e1;
+
+  /* Geometría del patrón */
+  --crease: 1px;
+
+  /* Ritmo */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 18px;
+  --s5: 28px;
+  --s6: 44px;
+  --s7: 68px;
+
+  --display: 'Archivo', system-ui, sans-serif;
+  --spec: 'Martian Mono', ui-monospace, monospace;
+
+  /* Sombra: desplazamiento y desenfoque reales, como una hoja levantada. */
+  --lift: 0 2px 4px rgba(20, 18, 12, 0.06), 0 8px 22px rgba(20, 18, 12, 0.08);
+  --lift-sm: 0 1px 2px rgba(20, 18, 12, 0.07), 0 3px 8px rgba(20, 18, 12, 0.06);
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}

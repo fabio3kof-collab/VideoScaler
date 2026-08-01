@@ -1,0 +1,50 @@
+appId: com.karbec.videoscaler
+productName: VideoScaler
+copyright: Copyright © 2026 Karbec
+
+directories:
+  buildResources: build
+  output: release/${version}
+
+files:
+  - out/**
+  - package.json
+  - '!**/{.eslintrc,.editorconfig,.prettierrc,tsconfig*.json}'
+  - '!**/*.map'
+  # ffprobe-static publica binarios de las tres plataformas y de dos
+  # arquitecturas. Enviamos sólo win32/x64: el resto son 233 MB muertos en un
+  # instalador de Windows.
+  - '!node_modules/ffprobe-static/bin/darwin/**'
+  - '!node_modules/ffprobe-static/bin/linux/**'
+  - '!node_modules/ffprobe-static/bin/win32/ia32/**'
+
+# Los binarios de FFmpeg no pueden vivir dentro del asar: se ejecutan como
+# procesos y el sistema necesita una ruta real en disco.
+asarUnpack:
+  - node_modules/ffmpeg-static/**
+  - node_modules/ffprobe-static/**
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: VideoScaler
+  # Sin esto, cada actualización deja atrás la versión anterior.
+  deleteAppDataOnUninstall: false
+
+# Canal de actualización. `publish` alimenta tanto a electron-builder al
+# publicar como a electron-updater al buscar versiones nuevas: es el mismo
+# contrato en los dos extremos.
+publish:
+  provider: github
+  owner: fabio3kof-collab
+  repo: VideoScaler
+  releaseType: release

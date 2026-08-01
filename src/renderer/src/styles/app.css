@@ -1,0 +1,1027 @@
+@import './tokens.css';
+
+/*
+ * Regla dura del brief: el cizallamiento vive en contenedores, filetes y tabs.
+ * Nunca en líneas de texto ni en columnas numéricas. Por eso las formas de
+ * paralelogramo se hacen con clip-path y no con transform: skew — clip-path
+ * recorta el contenedor sin deformar una sola letra de lo que lleva dentro.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--sheet);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+
+/* --- Retícula de pliegues: el papel sobre el que se dibuja todo ----------- */
+
+.app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  background-color: var(--sheet);
+  background-image:
+    repeating-linear-gradient(
+      60deg,
+      transparent 0 63px,
+      rgba(120, 116, 106, 0.09) 63px 64px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 63px,
+      rgba(120, 116, 106, 0.07) 63px 64px
+    );
+}
+
+/* --- Cabecera ------------------------------------------------------------ */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s5);
+  border-bottom: var(--crease) solid var(--mountain);
+  background: rgba(247, 247, 247, 0.86);
+  backdrop-filter: blur(6px);
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 13px;
+  font-weight: 600;
+  font-stretch: 112%;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.bar-spacer {
+  flex: 1;
+}
+
+.bar-note {
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+/* --- Cuerpo desplazable -------------------------------------------------- */
+
+.scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* La barra de desplazamiento por defecto de Chromium delata el navegador
+   dentro de una app de escritorio; se dibuja como un pliegue más. */
+.scroll::-webkit-scrollbar {
+  width: 11px;
+}
+
+.scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  min-height: 34px;
+  background: var(--mountain);
+  border: 3px solid var(--sheet);
+}
+
+.scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+}
+
+.scroll::-webkit-scrollbar-thumb:active {
+  background: var(--ink-2);
+}
+
+/* --- Arrastre: la hoja se levanta por el borde ---------------------------- */
+
+.app.is-dragging::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  border: 3px solid var(--foil);
+  background: rgba(212, 175, 55, 0.06);
+}
+
+/* --- Leyenda del sistema de pliegues -------------------------------------- */
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  margin-left: auto;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.stack {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--s6) var(--s5) var(--s7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+/* --- Estado vacío: el paquete plegado ------------------------------------ */
+
+.packet-wrap {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: var(--s6) var(--s5);
+}
+
+.packet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s5);
+  max-width: 520px;
+  text-align: center;
+}
+
+.packet-figure {
+  position: relative;
+  width: 168px;
+  height: 148px;
+  color: var(--foil);
+}
+
+.packet-figure svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.packet h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.08;
+  font-weight: 600;
+  font-stretch: 118%;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.packet p {
+  margin: 0;
+  max-width: 44ch;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.dropping .packet-figure {
+  animation: pulse 1.2s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Sondeo: el paquete respira mientras ffprobe mide el archivo. */
+.packet-figure.is-probing {
+  animation: breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* --- Acciones ------------------------------------------------------------ */
+
+.act {
+  --notch: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 11px 26px;
+  font-size: 12px;
+  font-weight: 600;
+  font-stretch: 108%;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  clip-path: polygon(var(--notch) 0, 100% 0, calc(100% - var(--notch)) 100%, 0 100%);
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+}
+
+/* Oro foil: reservado a comprometer. Un solo uso por pantalla. */
+.act-commit {
+  color: var(--foil-ink);
+  background: linear-gradient(103deg, #e8c85e 0%, var(--foil) 46%, #b38f2a 100%);
+  /* drop-shadow se aplica después del recorte; box-shadow se perdería. */
+  filter: drop-shadow(0 1px 2px rgba(20, 18, 12, 0.14))
+    drop-shadow(0 4px 10px rgba(20, 18, 12, 0.12));
+}
+
+.act-commit:hover:not(:disabled) {
+  background: linear-gradient(103deg, #f2d670 0%, #e2bd47 46%, #c09a2e 100%);
+}
+
+.act-commit:active:not(:disabled) {
+  filter: none;
+  background: linear-gradient(103deg, #c8a63a 0%, #b89428 46%, #96781f 100%);
+}
+
+.act-commit:disabled {
+  /* Es la acción principal y este estado se alcanza cuando falta FFmpeg, así
+     que el texto sigue cumpliendo 4.5:1 en vez de apagarse. */
+  color: var(--ink-2);
+  background: var(--mountain-fill);
+  filter: none;
+  cursor: not-allowed;
+}
+
+.act-quiet {
+  color: var(--ink);
+  background: var(--sheet-raised);
+  box-shadow: inset 0 0 0 var(--crease) var(--mountain);
+}
+
+.act-quiet:hover:not(:disabled) {
+  background: var(--sheet-sunk);
+}
+
+.act-quiet:active:not(:disabled) {
+  background: var(--mountain-fill);
+}
+
+.act-quiet:disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+/* --- Ficha de identidad del archivo -------------------------------------- */
+
+.identity {
+  position: relative;
+  padding: var(--s4) var(--s5) var(--s4);
+  background: var(--sheet-raised);
+  box-shadow: var(--lift);
+}
+
+.identity::after {
+  /* El doblez de la esquina, dibujado y no simulado con sombra. */
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 17px;
+  height: 17px;
+  background: linear-gradient(225deg, var(--sheet-sunk) 50%, transparent 50%);
+  border-left: var(--crease) solid var(--mountain);
+  border-bottom: var(--crease) solid var(--mountain);
+}
+
+.identity-name {
+  display: block;
+  margin: 0 0 var(--s4);
+  padding-right: var(--s5);
+  font-size: 19px;
+  font-weight: 600;
+  font-stretch: 108%;
+  letter-spacing: -0.012em;
+  overflow-wrap: anywhere;
+}
+
+.specs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: var(--s4) var(--s3);
+}
+
+.spec-k {
+  display: block;
+  margin-bottom: 3px;
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.spec-v {
+  display: block;
+  font-family: var(--spec);
+  font-size: 13px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* --- Pliegues de control ------------------------------------------------- */
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-stretch: 108%;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.creases {
+  display: flex;
+  flex-direction: column;
+  gap: var(--crease);
+  background: var(--mountain);
+  box-shadow: var(--lift);
+}
+
+.crease {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1.25fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--sheet-raised);
+  min-height: 52px;
+}
+
+/*
+ * Montaña va rellena, valle va hueca con su línea de doblez. La diferencia es
+ * de forma antes que de color: con deficiencia de color, dos paralelogramos
+ * claros de distinto tinte son el mismo objeto.
+ */
+.crease-mark {
+  width: 22px;
+  height: 13px;
+}
+
+.crease-mark-mountain {
+  background: var(--mark-mountain);
+  clip-path: polygon(30% 0, 100% 0, 70% 100%, 0 100%);
+}
+
+.crease-mark-valley {
+  background: transparent;
+  border: 1.5px solid var(--mark-valley);
+  border-top-width: 4px;
+  transform: skewX(-17deg);
+}
+
+.crease-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.crease-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-3);
+}
+
+/* La columna de valor sólo existe cuando muestra algo que el control no puede
+   decir por sí mismo: dimensiones calculadas, MB, kbps, duración recortada. */
+.crease-novalue {
+  grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1.25fr);
+}
+
+.crease-value {
+  justify-self: end;
+  min-width: 74px;
+  text-align: right;
+  font-family: var(--spec);
+  font-size: 12px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+/* --- Controles ----------------------------------------------------------- */
+
+.seg {
+  display: flex;
+  gap: var(--crease);
+  background: var(--mountain);
+  box-shadow: inset 0 0 0 var(--crease) var(--mountain);
+}
+
+.seg button {
+  flex: 1;
+  padding: 7px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  background: var(--sheet-raised);
+  color: var(--ink-2);
+  transition: background 140ms var(--ease), color 140ms var(--ease);
+}
+
+/* El hover no puede usar el mismo relleno que la selección: si no, pasar el
+   ratón sobre una opción la hace parecer elegida. */
+.seg button:hover:not([aria-checked='true']) {
+  background: #f1efe9;
+  color: var(--ink);
+}
+
+.seg button:active:not([aria-checked='true']) {
+  background: var(--mountain-fill);
+}
+
+/*
+ * La selección es neutra a propósito. El azul valle queda reservado a la
+ * semántica de pliegue (preserva calidad); si además marcara "seleccionado",
+ * el sistema de dos pliegues dejaría de significar algo.
+ */
+.seg button[aria-checked='true'] {
+  color: var(--ink);
+  background: var(--sheet-sunk);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+
+.seg button:disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+input[type='range'] {
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 3px;
+  background: var(--mountain);
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-top: -6px;
+  background: var(--ink);
+  clip-path: polygon(32% 0, 100% 0, 68% 100%, 0 100%);
+}
+
+input[type='range']:disabled::-webkit-slider-thumb {
+  background: var(--mountain);
+}
+
+.num {
+  width: 100%;
+  padding: 7px 10px;
+  font-family: var(--spec);
+  font-size: 12px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: var(--sheet-raised);
+  border: var(--crease) solid var(--mountain);
+  border-radius: 0;
+}
+
+.num:focus {
+  border-color: var(--valley-line);
+  outline: none;
+  box-shadow: inset 0 -2px 0 var(--valley);
+}
+
+.switch {
+  --notch: 9px;
+  width: 46px;
+  height: 24px;
+  padding: 3px;
+  background: var(--mountain-fill);
+  box-shadow: inset 0 0 0 var(--crease) var(--mountain);
+  clip-path: polygon(var(--notch) 0, 100% 0, calc(100% - var(--notch)) 100%, 0 100%);
+  transition: background 160ms var(--ease);
+}
+
+.switch:hover {
+  background: #ddd9d0;
+}
+
+.switch[aria-checked='true'] {
+  background: var(--valley);
+  box-shadow: inset 0 0 0 var(--crease) var(--mark-valley);
+}
+
+.switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.switch span {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: var(--sheet-raised);
+  box-shadow: inset 0 0 0 1px var(--mountain);
+  clip-path: polygon(28% 0, 100% 0, 72% 100%, 0 100%);
+  transition: transform 200ms var(--ease);
+}
+
+.switch[aria-checked='true'] span {
+  transform: translateX(22px);
+}
+
+.switch:active span {
+  transform: scaleY(0.9);
+}
+
+.switch[aria-checked='true']:active span {
+  transform: translateX(22px) scaleY(0.9);
+}
+
+/* --- El despliegue: Básico → Avanzado ------------------------------------ */
+
+.deploy-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-stretch: 108%;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.deploy-toggle:hover {
+  color: var(--ink);
+}
+
+.deploy-toggle svg {
+  transition: transform 260ms var(--ease);
+}
+
+.deploy-toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+/*
+ * El momento autorado: la hoja se despliega y las filas llegan escalonadas
+ * siguiendo la diagonal del patrón, no todas a la vez.
+ */
+.deployed .crease {
+  animation: unfold 420ms var(--ease) backwards;
+}
+
+.deployed .crease:nth-child(1) { animation-delay: 0ms; }
+.deployed .crease:nth-child(2) { animation-delay: 32ms; }
+.deployed .crease:nth-child(3) { animation-delay: 64ms; }
+.deployed .crease:nth-child(4) { animation-delay: 96ms; }
+.deployed .crease:nth-child(5) { animation-delay: 128ms; }
+.deployed .crease:nth-child(6) { animation-delay: 160ms; }
+.deployed .crease:nth-child(7) { animation-delay: 192ms; }
+.deployed .crease:nth-child(8) { animation-delay: 224ms; }
+.deployed .crease:nth-child(n + 9) { animation-delay: 256ms; }
+
+@keyframes unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-7px);
+    clip-path: polygon(0 0, 100% 0, 100% 0, 0 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  }
+}
+
+/* --- Barra de masa: siempre presente ------------------------------------- */
+
+.mass {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  padding: var(--s3) var(--s5);
+  border-top: var(--crease) solid var(--mountain);
+  background: var(--sheet-raised);
+  box-shadow: 0 -3px 14px rgba(20, 18, 12, 0.05);
+}
+
+.mass-group {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.mass-k {
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.mass-v {
+  font-family: var(--spec);
+  font-size: 15px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+}
+
+.mass-v-strong {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.mass-drop {
+  padding: 2px 9px;
+  font-family: var(--spec);
+  font-size: 11px;
+  font-stretch: 82%;
+  font-variant-numeric: tabular-nums;
+  color: var(--valley-ink);
+  background: var(--valley);
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+
+.mass-drop-up {
+  color: #6b2f18;
+  background: #f3ddd0;
+}
+
+/* Cuánto respira el video con los bits que le tocan. Se lee de un vistazo y
+   es lo que cambia cuando el peso final está fijado por el objetivo. */
+.density {
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+
+.density-holgado {
+  color: #24512c;
+  background: #d6e8d4;
+}
+
+.density-justo {
+  color: var(--valley-ink);
+  background: var(--valley);
+}
+
+.density-apretado {
+  color: #6b2f18;
+  background: #f3ddd0;
+}
+
+.mass-approx {
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+}
+
+/* --- Progreso ------------------------------------------------------------ */
+
+.progress-track {
+  position: relative;
+  height: 5px;
+  background: var(--mountain-fill);
+  overflow: hidden;
+}
+
+/* Escala en vez de ancho: animar width fuerza layout en cada frame, y esto
+   corre durante minutos mientras FFmpeg trabaja. */
+.progress-fill {
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  background: linear-gradient(103deg, var(--foil) 0%, #e8c85e 100%);
+  transition: transform 320ms linear;
+}
+
+.run {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  background: var(--sheet-raised);
+  box-shadow: var(--lift);
+}
+
+.run-stats {
+  display: flex;
+  gap: var(--s5);
+  margin-left: auto;
+  font-family: var(--spec);
+  font-size: 11px;
+  font-stretch: 82%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+/* --- Resultado y aviso --------------------------------------------------- */
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s4) var(--s5);
+  background: var(--sheet-raised);
+  box-shadow: var(--lift);
+}
+
+.result-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  font-family: var(--spec);
+  font-size: 17px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6b2416;
+  background: var(--alert-fill);
+  box-shadow: inset 0 0 0 var(--crease) #e0bdb1;
+}
+
+.notice svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--alert);
+}
+
+.notice-quiet {
+  color: var(--valley-ink);
+  background: var(--valley);
+  box-shadow: inset 0 0 0 var(--crease) var(--valley-line);
+}
+
+.notice-quiet svg {
+  color: var(--valley-ink);
+}
+
+/* --- Piezas de control auxiliares ---------------------------------------- */
+
+.slider {
+  width: 100%;
+}
+
+.slider-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -2px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s2);
+}
+
+.detail {
+  display: block;
+  margin-top: var(--s2);
+  padding: var(--s2);
+  font-family: var(--spec);
+  font-size: 11px;
+  font-stretch: 82%;
+  color: var(--ink-2);
+  background: rgba(255, 255, 255, 0.6);
+  overflow-wrap: anywhere;
+}
+
+.mass-arrow {
+  color: var(--ink-3);
+}
+
+.section-head-deployed {
+  margin-top: var(--s3);
+}
+
+.link {
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.notice code {
+  font-family: var(--spec);
+  font-size: 11px;
+  font-stretch: 82%;
+  overflow-wrap: anywhere;
+}
+
+
+/* --- Foco -----------------------------------------------------------------
+ *
+ * clip-path recorta outline y box-shadow, así que en las formas de
+ * paralelogramo el anillo de foco desaparece. Las sombras internas se pintan
+ * dentro del recorte y sí sobreviven.
+ *
+ * Este bloque va al final del archivo a propósito: las reglas de estado
+ * seleccionado usan box-shadow con la misma especificidad, y en un empate gana
+ * la última. Puestas antes, la selección borraba el anillo justo en el control
+ * enfocado — y como el tabindex móvil sólo enfoca la opción seleccionada, eso
+ * dejaba los once grupos de opciones sin ninguna señal de foco.
+ * Por eso además se compone con la sombra de selección en vez de sustituirla.
+ */
+
+.act:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.seg button:focus-visible,
+.seg button[aria-checked='true']:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ink), inset 0 -2px 0 var(--ink);
+}
+
+.switch:focus-visible,
+.switch[aria-checked='true']:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+/* --- Campo con unidad ----------------------------------------------------- */
+
+.field {
+  display: flex;
+  align-items: stretch;
+  /* Sin tope, el campo ocupa toda la columna y la unidad queda a medio metro
+     del número que califica: presente, pero ya no se lee como sufijo. */
+  max-width: 150px;
+  border: var(--crease) solid var(--mountain);
+  background: var(--sheet-raised);
+}
+
+.field:focus-within {
+  border-color: var(--mark-valley);
+  box-shadow: inset 0 -2px 0 var(--valley);
+}
+
+.field .num {
+  border: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.field .num:focus {
+  box-shadow: none;
+}
+
+.field-unit {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--ink-2);
+  background: var(--sheet-sunk);
+  border-left: var(--crease) solid var(--mountain);
+}
+
+.pair-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pair-cap {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+@media (max-width: 1000px) {
+  .stack {
+    padding: var(--s5) var(--s4) var(--s6);
+  }
+
+  .crease {
+    grid-template-columns: 22px minmax(0, 1fr);
+    row-gap: var(--s2);
+    padding: var(--s3);
+  }
+
+  .crease > *:nth-child(3) {
+    grid-column: 2;
+  }
+
+  .crease-value {
+    grid-column: 2;
+    justify-self: start;
+    text-align: left;
+  }
+
+  .mass {
+    gap: var(--s4);
+    padding: var(--s3) var(--s4);
+  }
+
+  .mass-v-strong {
+    font-size: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+  }
+
+  /* Acortar la duración de un bucle infinito lo acelera, no lo detiene.
+     Los bucles decorativos se apagan; las entradas se resuelven al instante. */
+  .dropping .packet-figure,
+  .packet-figure.is-probing {
+    animation: none !important;
+  }
+
+  .deployed .crease {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+}
