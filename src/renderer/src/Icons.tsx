@@ -156,18 +156,12 @@ export function IconCamera(p: P): JSX.Element {
   )
 }
 
-export function IconPlus(p: P): JSX.Element {
+/** Enfoque: las cuatro escuadras del recuadro y la cruz que marca el centro. */
+export function IconFocus(p: P): JSX.Element {
   return (
     <svg {...base} {...p}>
-      <path d="M8 3.4v9.2M3.4 8h9.2" />
-    </svg>
-  )
-}
-
-export function IconMinus(p: P): JSX.Element {
-  return (
-    <svg {...base} {...p}>
-      <path d="M3.4 8h9.2" />
+      <path d="M2.2 5.4V2.2h3.2M10.6 2.2h3.2v3.2M13.8 10.6v3.2h-3.2M5.4 13.8H2.2v-3.2" />
+      <path d="M6.4 8h3.2M8 6.4v3.2" />
     </svg>
   )
 }

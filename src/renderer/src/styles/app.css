@@ -1224,7 +1224,7 @@ input[type='range']:disabled::-webkit-slider-thumb {
 
 /* Un video que no abrió no es una imagen negra: es nada. Sigue montado para
    poder reintentar con la vista previa, pero deja de ocupar la mesa. */
-.stage-video.is-blank {
+.stage-frame.is-blank {
   display: none;
 }
 
@@ -1232,14 +1232,77 @@ input[type='range']:disabled::-webkit-slider-thumb {
   cursor: grabbing;
 }
 
-.stage-video {
+/* Dibujar un recuadro no es agarrar la imagen: mientras el enfoque está armado
+   el puntero corta en vez de arrastrar. */
+.stage.is-picking,
+.stage.is-picking:active {
+  cursor: crosshair;
+}
+
+/* El marco lleva el tamaño y la transformación; el video sólo lo rellena.
+   Existe para que lo que se apoye encima de la imagen — el recuadro enfocado —
+   viaje con el zoom y el paneo sin una sola línea de cálculo propia. */
+.stage-frame {
+  position: relative;
   display: block;
-  /* El hueco de la imagen antes del primer fotograma, en tinta y no en un negro
-     nuevo: el sistema ya tiene su tono más oscuro y no necesita otro. */
-  background: var(--ink);
   box-shadow: var(--lift-stage);
   /* El zoom se compone en la GPU; sin esto, cada paso de la rueda repinta. */
   will-change: transform;
+}
+
+.stage-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* El hueco de la imagen antes del primer fotograma, en tinta y no en un negro
+     nuevo: el sistema ya tiene su tono más oscuro y no necesita otro. */
+  background: var(--ink);
+}
+
+/* --- El enfoque: los mismos píxeles, realzados ---------------------------- */
+
+/* El lienzo se apoya sobre la región que copia, dentro del marco y en
+   porcentaje, así que el zoom lo escala igual que a la imagen de debajo. Sin
+   `image-rendering`: interpolado como el video, o la comparación mentiría. */
+.loupe {
+  position: absolute;
+  display: block;
+}
+
+/* Papel, no foil: el oro es de la acción que compromete trabajo, y enfocar una
+   región no compromete nada. Sobre lo oscuro, un pelo de papel ya destaca. */
+.loupe,
+.loupe-draft {
+  box-shadow: 0 0 0 1px var(--sheet);
+}
+
+.loupe-draft {
+  position: absolute;
+  background: rgba(247, 245, 239, 0.1);
+}
+
+/* Los mandos del enfoque, en una hoja apoyada sobre la mesa: son de la
+   aplicación, no de la imagen, y sobre lo oscuro no se lee. */
+.loupe-card {
+  position: absolute;
+  left: var(--s4);
+  bottom: var(--s4);
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  background: var(--sheet-raised);
+  box-shadow: var(--lift-stage);
+}
+
+.loupe-card label {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.loupe-range {
+  width: 92px;
 }
 
 .stage-alert {
@@ -1474,32 +1537,39 @@ input[type='range']:disabled::-webkit-slider-thumb {
   min-width: 92px;
 }
 
+/* El zoom es una escala continua, así que se mueve con una barra y no a saltos
+   de botón: dos teclas de más y de menos obligaban a contar pulsaciones para
+   llegar a un sitio que la mano encuentra de una pasada. */
 .zoom {
   display: flex;
-  align-items: stretch;
-  gap: var(--crease);
-  background: var(--mountain);
-  box-shadow: inset 0 0 0 var(--crease) var(--mountain);
+  align-items: center;
+  gap: var(--s2);
 }
 
-/* Dentro del grupo las teclas pierden el bisel: el que corta es el grupo. */
-.zoom .tkey {
-  clip-path: none;
-  box-shadow: none;
+.zoom-range {
+  width: 132px;
 }
 
 .zoom-v {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-width: 60px;
-  padding: 0 var(--s2);
+  justify-content: flex-end;
+  min-width: 52px;
   font-family: var(--spec);
   font-size: 12px;
   font-stretch: 88%;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
-  background: var(--sheet-raised);
+}
+
+/* Una herramienta armada se queda hundida mientras lo esté: la misma señal de
+   selección neutra que el grupo segmentado y las pestañas. */
+.tkey.is-on,
+.act.is-on {
+  background: var(--sheet-sunk);
+  box-shadow:
+    inset 0 0 0 var(--crease) var(--mountain),
+    inset 0 -2px 0 var(--ink);
 }
 
 .vol {

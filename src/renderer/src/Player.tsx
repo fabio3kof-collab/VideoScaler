@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, JSX } from 'react'
+import type { CSSProperties, JSX, PointerEvent as ReactPointerEvent } from 'react'
 import type { MediaProbe } from '@shared/types'
 import { formatTimecode } from './defaults'
 import { explain, type FriendlyError } from './errors'
@@ -8,11 +8,10 @@ import { ErrorNotice, Notice } from './Notice'
 import {
   IconCamera,
   IconCheck,
-  IconMinus,
+  IconFocus,
   IconMute,
   IconPause,
   IconPlay,
-  IconPlus,
   IconSound,
   IconStepBack,
   IconStepNext
@@ -27,11 +26,11 @@ import {
  * comodidad: es el único sitio donde el usuario puede comprobar lo que el otro
  * módulo afirma.
  *
- * De ahí las tres herramientas que no trae un reproductor cualquiera: la
- * velocidad (el movimiento delata lo que la pausa esconde), el zoom con tamaño
- * real (un píxel del video en un píxel de pantalla, sin reescalado que disimule
- * el defecto) y el paso cuadro a cuadro con J y K (el fotograma después de un
- * corte es siempre el peor del video).
+ * De ahí las herramientas que no trae un reproductor cualquiera: la velocidad
+ * (el movimiento delata lo que la pausa esconde), el zoom con tamaño real (un
+ * píxel del video en un píxel de pantalla, sin reescalado que disimule el
+ * defecto), el paso cuadro a cuadro con J y K — que sostenidas se vuelven una
+ * marcha al 15 % — y el recuadro de enfoque sobre la imagen detenida.
  */
 
 const SPEEDS = [
@@ -43,8 +42,18 @@ const SPEEDS = [
   { value: '4', label: '4×' }
 ]
 
-const MIN_ZOOM = 0.1
-const MAX_ZOOM = 16
+/** La marcha de J y K sostenidas: lo bastante lenta para leer cada cuadro. */
+const CRAWL_RATE = 0.15
+/** Cuánto hay que sostener antes de que el paso suelto se vuelva marcha. */
+const CRAWL_AFTER_MS = 280
+
+/**
+ * El techo del zoom, en escala efectiva. El suelo no es una constante: es lo
+ * que mida el propio archivo — no tiene sentido alejarse más allá del fotograma
+ * entero, porque debajo no hay nada que ver.
+ */
+const ZOOM_CEILING = 3
+
 /** Aire alrededor de la imagen cuando está ajustada: la mesa no es un marco. */
 const STAGE_PAD = 24
 
@@ -55,6 +64,24 @@ function clamp(n: number, min: number, max: number): number {
 interface Point {
   x: number
   y: number
+}
+
+/** Recuadro en proporción del fotograma (0..1), no en píxeles de pantalla: así
+    sobrevive al zoom, al paneo y al cambio de tamaño de la ventana. */
+interface Box {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+function boxOf(a: Point, b: Point): Box {
+  return {
+    x: Math.min(a.x, b.x),
+    y: Math.min(a.y, b.y),
+    w: Math.abs(a.x - b.x),
+    h: Math.abs(a.y - b.y)
+  }
 }
 
 export function Player({
@@ -70,7 +97,10 @@ export function Player({
 }): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
+  const frameRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const dragRef = useRef<{ id: number; from: Point; pan: Point } | null>(null)
+  const drawRef = useRef<{ id: number; from: Point } | null>(null)
   /** Arrastrar la imagen no es pulsarla: sin esto, cada paneo pausaría el video. */
   const draggedRef = useRef(false)
   /** Al cambiar de fuente (original → vista previa) el sitio no se pierde. */
@@ -93,6 +123,13 @@ export function Player({
   const [media, setMedia] = useState<Point>({ x: 0, y: 0 })
   const [stage, setStage] = useState<Point>({ x: 0, y: 0 })
 
+  const [picking, setPicking] = useState(false)
+  const [draft, setDraft] = useState<Box | null>(null)
+  const [box, setBox] = useState<Box | null>(null)
+  const [amount, setAmount] = useState(0.9)
+  const [radius, setRadius] = useState(1.2)
+  const [bare, setBare] = useState(false)
+
   const [saved, setSaved] = useState<string | null>(null)
 
   // Los cuadros por segundo salen del sondeo y no del elemento de video, porque
@@ -113,6 +150,9 @@ export function Player({
     setTime(0)
     setZoom(1)
     setPan({ x: 0, y: 0 })
+    setPicking(false)
+    setDraft(null)
+    setBox(null)
     setDuration(probe.durationSec)
     setMedia({ x: probe.video?.width ?? 0, y: probe.video?.height ?? 0 })
     resumeAt.current = 0
@@ -196,6 +236,20 @@ export function Player({
     )
   }, [media, stage])
 
+  /**
+   * Los topes, dichos en escala efectiva y no en pasos de zoom.
+   *
+   * Abajo, el menor entre el fotograma entero y el tamaño real: alejarse más
+   * que el cuadro completo no muestra nada nuevo, y alejarse por debajo del
+   * 100 % tampoco — pero un video más chico que la ventana se ajusta *hacia
+   * arriba*, y ahí el suelo tiene que ser el tamaño real o el botón 1:1 pediría
+   * algo prohibido. Arriba, 300 %, salvo que el propio ajuste ya lo supere.
+   */
+  const floorPct = Math.max(1, Math.round(Math.min(fit, 1) * 100))
+  const ceilPct = Math.max(floorPct + 1, Math.round(Math.max(fit, ZOOM_CEILING) * 100))
+  const zoomMin = floorPct / 100 / fit
+  const zoomMax = ceilPct / 100 / fit
+
   const shown = { x: media.x * fit, y: media.y * fit }
   const overflowX = Math.max(0, (shown.x * zoom - stage.x) / 2)
   const overflowY = Math.max(0, (shown.y * zoom - stage.y) / 2)
@@ -216,7 +270,7 @@ export function Player({
    */
   const zoomTo = useCallback(
     (next: number, anchor?: Point): void => {
-      const z = clamp(next, MIN_ZOOM, MAX_ZOOM)
+      const z = clamp(next, zoomMin, zoomMax)
       setZoom(z)
       setPan((p) => {
         if (!anchor) return clampPan(p, z)
@@ -224,8 +278,18 @@ export function Player({
         return clampPan({ x: anchor.x - held.x * z, y: anchor.y - held.y * z }, z)
       })
     },
-    [zoom, clampPan]
+    [zoom, zoomMin, zoomMax, clampPan]
   )
+
+  // Al cambiar de archivo o de tamaño de ventana cambian los topes, y lo que
+  // estaba dentro puede quedar fuera.
+  useEffect(() => {
+    setZoom((z) => clamp(z, zoomMin, zoomMax))
+  }, [zoomMin, zoomMax])
+
+  useEffect(() => {
+    setPan((p) => clampPan(p, zoom))
+  }, [clampPan, zoom])
 
   // Rueda sobre la mesa: acercar y alejar. Va como escucha nativa y no como
   // `onWheel` de React porque hay que cancelar el gesto — con Ctrl pulsado,
@@ -275,6 +339,73 @@ export function Player({
     [fps, totalFrames, duration]
   )
 
+  /*
+   * Tocar J o K da un cuadro; sostenerlas da una marcha al 15 %.
+   *
+   * Son dos gestos sobre la misma tecla porque son la misma pregunta a dos
+   * distancias: «¿qué pasa exactamente aquí?» y «¿qué pasa por esta zona?».
+   * Obligar a soltar y volver a pulsar cincuenta veces para recorrer dos
+   * segundos convierte la segunda en un trabajo manual.
+   *
+   * Hacia adelante la marcha es la del propio elemento de video, que decodifica
+   * seguido y no da tirones. Hacia atrás no existe — ningún navegador reproduce
+   * al revés — así que se van pidiendo cuadros hacia atrás al mismo ritmo al
+   * que la marcha de ida los muestra.
+   */
+  const holdRef = useRef<{ dir: number; arm: number; run: number } | null>(null)
+
+  /* La velocidad elegida, en una referencia y no en la dependencia de `release`:
+     si soltar la marcha cambiara de identidad con cada cambio de velocidad, el
+     efecto que lo llama al desmontar se dispararía al mover el segmentado y
+     pausaría un video que nadie pidió pausar. */
+  const rateRef = useRef(rate)
+  useEffect(() => {
+    rateRef.current = rate
+  }, [rate])
+
+  const release = useCallback((): void => {
+    const held = holdRef.current
+    if (!held) return
+    window.clearTimeout(held.arm)
+    window.clearInterval(held.run)
+    holdRef.current = null
+    const v = videoRef.current
+    if (v) {
+      v.pause()
+      v.playbackRate = rateRef.current
+    }
+  }, [])
+
+  const press = useCallback(
+    (dir: number): void => {
+      if (holdRef.current || unplayable) return
+      // El toque se cobra al instante: esperar a saber si es toque o sostenido
+      // haría que un solo cuadro llegara siempre tarde.
+      stepFrame(dir)
+      const held = { dir, arm: 0, run: 0 }
+      holdRef.current = held
+      held.arm = window.setTimeout(() => {
+        const v = videoRef.current
+        if (!v || holdRef.current !== held) return
+        if (dir > 0) {
+          v.playbackRate = CRAWL_RATE
+          void v.play().catch(() => undefined)
+        } else {
+          held.run = window.setInterval(() => stepFrame(-1), 1000 / (fps * CRAWL_RATE))
+        }
+      }, CRAWL_AFTER_MS)
+    },
+    [stepFrame, fps, unplayable]
+  )
+
+  // Una marcha que sobreviviera a salir del módulo, a cambiar de archivo o a
+  // desmontar seguiría pidiendo cuadros de un video que ya no se ve.
+  useEffect(() => {
+    if (!active) release()
+  }, [active, release])
+
+  useEffect(() => release, [release, src])
+
   const seekBy = useCallback((seconds: number): void => {
     const v = videoRef.current
     if (!v) return
@@ -286,7 +417,7 @@ export function Player({
     if (!v || !v.videoWidth) return
     try {
       // Siempre el fotograma entero y a resolución original: el zoom es para
-      // mirar, no para recortar. Quien acerca al 400 % quiere ver ese detalle,
+      // mirar, no para recortar. Quien acerca al 300 % quiere ver ese detalle,
       // no llevarse una imagen de un cuarto de pantalla.
       const canvas = document.createElement('canvas')
       canvas.width = v.videoWidth
@@ -319,6 +450,94 @@ export function Player({
     return () => clearTimeout(t)
   }, [saved])
 
+  // --- El enfoque ---------------------------------------------------------
+
+  /**
+   * Máscara de desenfoque sobre la región elegida: `original + fuerza × (original − desenfocada)`.
+   *
+   * No inventa un solo píxel — realza el contraste que ya está en el borde, que
+   * es lo que el ojo lee como nitidez. Por eso puede acompañar a un juicio sobre
+   * la compresión sin falsearlo, siempre que se recuerde lo que hace: un realce
+   * fuerte también le da filo al canto del bloque, y un bloque con filo parece
+   * detalle. Para eso está Comparar.
+   *
+   * Se hace a resolución original y sólo con la imagen detenida: en marcha
+   * habría que rehacerlo veinticinco veces por segundo para mirar algo que se
+   * mueve demasiado rápido para juzgarlo.
+   */
+  const renderFocus = useCallback((): void => {
+    const v = videoRef.current
+    const canvas = canvasRef.current
+    if (!v || !canvas || !box || !v.videoWidth) return
+
+    const sx = Math.round(box.x * v.videoWidth)
+    const sy = Math.round(box.y * v.videoHeight)
+    const sw = Math.max(1, Math.round(box.w * v.videoWidth))
+    const sh = Math.max(1, Math.round(box.h * v.videoHeight))
+
+    canvas.width = sw
+    canvas.height = sh
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return
+
+    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh)
+    if (bare || amount <= 0) return
+
+    // El desenfoque se pide con margen y luego se recorta: desenfocar justo el
+    // recuadro haría que sus bordes se mezclaran con el vacío de fuera del
+    // lienzo, y la región saldría con un halo oscuro alrededor.
+    const pad = Math.ceil(radius * 3)
+    const bx = Math.max(0, sx - pad)
+    const by = Math.max(0, sy - pad)
+    const bw = Math.min(v.videoWidth, sx + sw + pad) - bx
+    const bh = Math.min(v.videoHeight, sy + sh + pad) - by
+
+    const soft = document.createElement('canvas')
+    soft.width = bw
+    soft.height = bh
+    const sctx = soft.getContext('2d', { willReadFrequently: true })
+    if (!sctx) return
+    // El desenfoque lo hace el motor gráfico; a mano serían dos pasadas de
+    // convolución por cada movimiento de la barra.
+    sctx.filter = `blur(${radius}px)`
+    sctx.drawImage(v, bx, by, bw, bh, 0, 0, bw, bh)
+
+    const sharp = ctx.getImageData(0, 0, sw, sh)
+    const blurred = sctx.getImageData(sx - bx, sy - by, sw, sh)
+    // Los tres canales de color; el cuarto es la opacidad y no se toca. El
+    // recorte a 0..255 lo haría igual el propio Uint8ClampedArray, pero escrito
+    // se lee lo que pasa en un realce fuerte: el blanco se queda en blanco.
+    const a = sharp.data
+    const b = blurred.data
+    for (let i = 0; i < a.length; i += 4) {
+      for (let c = 0; c < 3; c++) {
+        const flat = b[i + c] ?? 0
+        const orig = a[i + c] ?? 0
+        a[i + c] = clamp(orig + amount * (orig - flat), 0, 255)
+      }
+    }
+    ctx.putImageData(sharp, 0, 0)
+  }, [box, amount, radius, bare])
+
+  // Se rehace en cada cuadro nuevo, así que avanzar con J y K deja la región
+  // enfocada viva sobre el fotograma que se acaba de pedir.
+  useEffect(() => {
+    if (playing) return
+    renderFocus()
+  }, [renderFocus, playing, time, src])
+
+  /** El punto del puntero en proporción del fotograma. */
+  const framePoint = useCallback((e: ReactPointerEvent): Point | null => {
+    const el = frameRef.current
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    if (!r.width || !r.height) return null
+    return {
+      x: clamp((e.clientX - r.left) / r.width, 0, 1),
+      y: clamp((e.clientY - r.top) / r.height, 0, 1)
+    }
+  }, [])
+
   // --- Teclado ------------------------------------------------------------
 
   useEffect(() => {
@@ -338,11 +557,13 @@ export function Player({
         case ' ':
           togglePlay()
           break
+        // El sistema repite la tecla mientras está hundida; esas repeticiones se
+        // ignoran porque la marcha ya la lleva el temporizador de `press`.
         case 'j':
-          stepFrame(-1)
+          if (!e.repeat) press(-1)
           break
         case 'k':
-          stepFrame(1)
+          if (!e.repeat) press(1)
           break
         case 'arrowleft':
           seekBy(-5)
@@ -376,27 +597,92 @@ export function Player({
       e.preventDefault()
     }
 
+    const onKeyUp = (e: KeyboardEvent): void => {
+      const key = e.key.toLowerCase()
+      if (key === 'j' || key === 'k') release()
+    }
+
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [active, togglePlay, stepFrame, seekBy, zoomTo, zoom])
+    window.addEventListener('keyup', onKeyUp)
+    // Al perder la ventana no llega el keyup, y la marcha se quedaría corriendo.
+    window.addEventListener('blur', release)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', release)
+    }
+  }, [active, togglePlay, press, release, seekBy, zoomTo, zoom])
 
   // --- Vista --------------------------------------------------------------
 
   const zoomPercent = Math.round(fit * zoom * 100)
   const savedName = saved?.split(/[\\/]/).pop() ?? ''
+  const selecting = picking && !playing
+  const rect = (b: Box): CSSProperties => ({
+    left: `${b.x * 100}%`,
+    top: `${b.y * 100}%`,
+    width: `${b.w * 100}%`,
+    height: `${b.h * 100}%`
+  })
+
+  /**
+   * El botón de paso, con sus dos formas de accionarse.
+   *
+   * Por puntero lo lleva `press`, que ya distingue el toque del sostenido, y el
+   * clic que viene detrás no debe cobrar un segundo cuadro. Por teclado no hay
+   * puntero que valga y el clic es lo único que llega, así que tiene que contar.
+   *
+   * Los separa `detail`, que es cuántas veces se pulsó: un clic real trae 1 o
+   * más y uno sintetizado por Intro o espacio sobre un botón enfocado trae 0.
+   * Sin estado propio, que es lo que importa — una bandera se quedaría trabada
+   * el día que se suelte el puntero fuera del botón y el clic no llegue.
+   */
+  const stepButton = (
+    dir: number
+  ): {
+    onPointerDown: (e: ReactPointerEvent) => void
+    onPointerUp: () => void
+    onPointerCancel: () => void
+    onClick: (e: { detail: number }) => void
+  } => ({
+    onPointerDown: (e) => {
+      e.currentTarget.setPointerCapture(e.pointerId)
+      press(dir)
+    },
+    onPointerUp: () => release(),
+    onPointerCancel: () => release(),
+    onClick: (e) => {
+      if (e.detail !== 0) return
+      stepFrame(dir)
+    }
+  })
 
   return (
     <>
       <div
-        className={`stage${canPan ? ' can-pan' : ''}`}
+        className={`stage${selecting ? ' is-picking' : canPan ? ' can-pan' : ''}`}
         ref={stageRef}
         onPointerDown={(e) => {
           draggedRef.current = false
+          if (selecting) {
+            const p = framePoint(e)
+            if (!p) return
+            e.currentTarget.setPointerCapture(e.pointerId)
+            drawRef.current = { id: e.pointerId, from: p }
+            setDraft({ x: p.x, y: p.y, w: 0, h: 0 })
+            return
+          }
           if (!canPan) return
           e.currentTarget.setPointerCapture(e.pointerId)
           dragRef.current = { id: e.pointerId, from: { x: e.clientX, y: e.clientY }, pan }
         }}
         onPointerMove={(e) => {
+          const draw = drawRef.current
+          if (draw && draw.id === e.pointerId) {
+            const p = framePoint(e)
+            if (p) setDraft(boxOf(draw.from, p))
+            return
+          }
           const drag = dragRef.current
           if (!drag || drag.id !== e.pointerId) return
           const dx = e.clientX - drag.from.x
@@ -405,52 +691,129 @@ export function Player({
           setPan(clampPan({ x: drag.pan.x + dx, y: drag.pan.y + dy }, zoom))
         }}
         onPointerUp={(e) => {
+          if (drawRef.current?.id === e.pointerId) {
+            drawRef.current = null
+            setDraft(null)
+            // Un recuadro más chico que un 2 % del cuadro fue un clic, no una
+            // selección: enfocar cuatro píxeles no es lo que nadie quiso pedir.
+            if (draft && draft.w > 0.02 && draft.h > 0.02) {
+              setBox(draft)
+              setPicking(false)
+            }
+            return
+          }
           if (dragRef.current?.id === e.pointerId) dragRef.current = null
         }}
         onPointerCancel={() => {
           dragRef.current = null
+          drawRef.current = null
+          setDraft(null)
         }}
       >
         {src && (
-          <video
-            ref={videoRef}
-            src={src}
-            // Sin esto el lienzo de captura queda «sucio» y el navegador prohíbe
-            // exportarlo: el fotograma se vería y no se podría guardar.
-            crossOrigin="anonymous"
-            preload="auto"
-            className={`stage-video${unplayable ? ' is-blank' : ''}`}
+          <div
+            ref={frameRef}
+            className={`stage-frame${unplayable ? ' is-blank' : ''}`}
             style={{
               width: shown.x ? `${shown.x}px` : undefined,
               height: shown.y ? `${shown.y}px` : undefined,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
             }}
-            onLoadedMetadata={(e) => {
-              const v = e.currentTarget
-              setDuration(Number.isFinite(v.duration) && v.duration > 0 ? v.duration : probe.durationSec)
-              setMedia({ x: v.videoWidth, y: v.videoHeight })
-              v.playbackRate = rate
-              if (resumeAt.current > 0) {
-                v.currentTime = resumeAt.current
-                resumeAt.current = 0
-              }
-            }}
-            onClick={() => {
-              if (draggedRef.current) return
-              togglePlay()
-            }}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onEnded={() => setPlaying(false)}
-            onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
-            onSeeked={(e) => setTime(e.currentTarget.currentTime)}
-            onError={() => setUnplayable(true)}
-          />
+          >
+            <video
+              ref={videoRef}
+              src={src}
+              // Sin esto el lienzo de captura queda «sucio» y el navegador prohíbe
+              // exportarlo: el fotograma se vería y no se podría guardar. El
+              // recuadro de enfoque lee del mismo lienzo y depende de lo mismo.
+              crossOrigin="anonymous"
+              preload="auto"
+              className="stage-video"
+              onLoadedMetadata={(e) => {
+                const v = e.currentTarget
+                setDuration(Number.isFinite(v.duration) && v.duration > 0 ? v.duration : probe.durationSec)
+                setMedia({ x: v.videoWidth, y: v.videoHeight })
+                v.playbackRate = rate
+                if (resumeAt.current > 0) {
+                  v.currentTime = resumeAt.current
+                  resumeAt.current = 0
+                }
+              }}
+              onClick={() => {
+                if (draggedRef.current || selecting) return
+                togglePlay()
+              }}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onEnded={() => setPlaying(false)}
+              onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+              onSeeked={(e) => setTime(e.currentTarget.currentTime)}
+              onError={() => setUnplayable(true)}
+            />
+
+            {box && !playing && <canvas ref={canvasRef} className="loupe" style={rect(box)} />}
+            {draft && <div className="loupe-draft" style={rect(draft)} />}
+          </div>
         )}
 
         {error && (
           <div className="stage-alert">
             <ErrorNotice error={error} />
+          </div>
+        )}
+
+        {box && !playing && (
+          <div className="loupe-card">
+            <span className="mass-k">Enfoque</span>
+            <label>
+              <span className="mass-k">Fuerza</span>
+              <input
+                className="loupe-range"
+                type="range"
+                min={0}
+                max={2}
+                step={0.05}
+                value={amount}
+                aria-label="Fuerza del enfoque"
+                aria-valuetext={`${Math.round(amount * 100)} %`}
+                onChange={(e) => setAmount(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              <span className="mass-k">Radio</span>
+              <input
+                className="loupe-range"
+                type="range"
+                min={0.4}
+                max={4}
+                step={0.1}
+                value={radius}
+                aria-label="Radio del enfoque"
+                aria-valuetext={`${radius.toFixed(1)} píxeles`}
+                onChange={(e) => setRadius(Number(e.target.value))}
+              />
+            </label>
+            {/* Un realce sin con qué compararlo no se puede juzgar: parece mejor
+                siempre, porque no hay a la vista nada que diga cuánto añadió. */}
+            <button
+              type="button"
+              className={`act act-quiet act-mini${bare ? ' is-on' : ''}`}
+              aria-pressed={bare}
+              onClick={() => setBare((b) => !b)}
+              title="Ver la región sin realzar"
+            >
+              Comparar
+            </button>
+            <button
+              type="button"
+              className="act act-quiet act-mini"
+              onClick={() => {
+                setBox(null)
+                setBare(false)
+              }}
+            >
+              Quitar
+            </button>
           </div>
         )}
 
@@ -545,10 +908,10 @@ export function Player({
           <button
             type="button"
             className="tkey"
-            onClick={() => stepFrame(-1)}
-            aria-label="Un cuadro atrás"
+            aria-label="Un cuadro atrás; sostener para retroceder al 15 %"
             aria-keyshortcuts="j"
-            title="Un cuadro atrás (J)"
+            title="Un cuadro atrás (J) — sostener para retroceder al 15 %"
+            {...stepButton(-1)}
           >
             <IconStepBack aria-hidden="true" />
             <kbd>J</kbd>
@@ -556,10 +919,10 @@ export function Player({
           <button
             type="button"
             className="tkey"
-            onClick={() => stepFrame(1)}
-            aria-label="Un cuadro adelante"
+            aria-label="Un cuadro adelante; sostener para avanzar al 15 %"
             aria-keyshortcuts="k"
-            title="Un cuadro adelante (K)"
+            title="Un cuadro adelante (K) — sostener para avanzar al 15 %"
+            {...stepButton(1)}
           >
             <kbd>K</kbd>
             <IconStepNext aria-hidden="true" />
@@ -610,27 +973,20 @@ export function Player({
           <div className="tool">
             <span className="mass-k">Zoom</span>
             <div className="zoom">
-              <button
-                type="button"
-                className="tkey"
-                onClick={() => zoomTo(zoom / 1.25)}
-                aria-label="Alejar"
-                title="Alejar (−)"
-              >
-                <IconMinus aria-hidden="true" />
-              </button>
+              <input
+                className="zoom-range"
+                type="range"
+                min={floorPct}
+                max={ceilPct}
+                step={1}
+                value={clamp(zoomPercent, floorPct, ceilPct)}
+                aria-label="Zoom"
+                aria-valuetext={`${zoomPercent} %`}
+                onChange={(e) => zoomTo(Number(e.target.value) / 100 / fit)}
+              />
               <span className="zoom-v" aria-live="polite" aria-atomic="true">
                 {zoomPercent} %
               </span>
-              <button
-                type="button"
-                className="tkey"
-                onClick={() => zoomTo(zoom * 1.25)}
-                aria-label="Acercar"
-                title="Acercar (+)"
-              >
-                <IconPlus aria-hidden="true" />
-              </button>
             </div>
             <button
               type="button"
@@ -682,6 +1038,21 @@ export function Player({
               }}
             />
           </div>
+
+          {/* Enfocar exige un fotograma quieto, así que la herramienta no existe
+              mientras el video corre: armarla y que el primer cuadro en marcha la
+              desarme sería peor que no ofrecerla. */}
+          <button
+            type="button"
+            className={`tkey${picking ? ' is-on' : ''}`}
+            disabled={playing || unplayable || !src}
+            aria-pressed={picking}
+            onClick={() => setPicking((p) => !p)}
+            title="Enfocar una región del fotograma detenido"
+          >
+            <IconFocus aria-hidden="true" />
+            Enfocar
+          </button>
 
           {/* El foil va aquí porque aquí está lo único que este módulo escribe
               en el disco. En la otra pantalla lo lleva Comprimir; nunca hay dos
