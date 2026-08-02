@@ -59,12 +59,12 @@ const STAGE_PAD = 24
 
 /**
  * Los topes del lienzo del enfoque, que trabaja a la resolución a la que se
- * está *viendo* la región y no a la del archivo. Cuatro veces el original es
- * más de lo que cualquier zoom pide, y cuatro millones de píxeles es un realce
- * que sigue cabiendo en un cuadro de pantalla sin hacerla saltar.
+ * está *viendo* la imagen y no a la del archivo. Cuatro veces el original es más
+ * de lo que cualquier zoom pide, y tres millones de píxeles es un realce que aún
+ * se calcula en un cuadro de pantalla — por encima, el paneo daría tirones.
  */
 const FOCUS_MAX_SCALE = 4
-const FOCUS_MAX_PIXELS = 4_000_000
+const FOCUS_MAX_PIXELS = 3_000_000
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
@@ -84,15 +84,6 @@ interface Box {
   h: number
 }
 
-function boxOf(a: Point, b: Point): Box {
-  return {
-    x: Math.min(a.x, b.x),
-    y: Math.min(a.y, b.y),
-    w: Math.abs(a.x - b.x),
-    h: Math.abs(a.y - b.y)
-  }
-}
-
 export function Player({
   probe,
   active,
@@ -109,7 +100,13 @@ export function Player({
   const frameRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dragRef = useRef<{ id: number; from: Point; pan: Point } | null>(null)
-  const drawRef = useRef<{ id: number; from: Point } | null>(null)
+  /** Qué región del fotograma tiene dibujada el realce ahora mismo. La captura
+      la necesita para pegarlo donde va, y no siempre es la que se ve: durante
+      un arrastre el realce se queda quieto sobre la imagen en vez de rehacerse. */
+  const shownFocus = useRef<Box | null>(null)
+  /** El realce vigente, para poder pedirlo al soltar el arrastre sin que el
+      manejador del puntero dependa de una función que cambia cada render. */
+  const focusRef = useRef<() => void>(() => undefined)
   /** Arrastrar la imagen no es pulsarla: sin esto, cada paneo pausaría el video. */
   const draggedRef = useRef(false)
   /** Al cambiar de fuente (original → vista previa) el sitio no se pierde. */
@@ -132,12 +129,9 @@ export function Player({
   const [media, setMedia] = useState<Point>({ x: 0, y: 0 })
   const [stage, setStage] = useState<Point>({ x: 0, y: 0 })
 
-  const [picking, setPicking] = useState(false)
-  const [draft, setDraft] = useState<Box | null>(null)
-  const [box, setBox] = useState<Box | null>(null)
+  const [focus, setFocus] = useState(false)
   const [amount, setAmount] = useState(0.9)
   const [radius, setRadius] = useState(1.2)
-  const [bare, setBare] = useState(false)
 
   const [saved, setSaved] = useState<{ path: string; crop: boolean } | null>(null)
 
@@ -159,9 +153,9 @@ export function Player({
     setTime(0)
     setZoom(1)
     setPan({ x: 0, y: 0 })
-    setPicking(false)
-    setDraft(null)
-    setBox(null)
+    // El interruptor del realce no se toca: es una preferencia de cómo mirar, no
+    // un sitio dentro de un archivo. Y cuando «Ver el resultado» trae la versión
+    // ligera, apagarlo justo ahí sería apagarlo en la mitad de la comparación.
     setDuration(probe.durationSec)
     setMedia({ x: probe.video?.width ?? 0, y: probe.video?.height ?? 0 })
     resumeAt.current = 0
@@ -468,17 +462,21 @@ export function Player({
 
       // El realce está a la vista, así que entra en el archivo: apagarlo al
       // escribir daría una imagen distinta de la que llevó a pulsar el botón.
-      // Comparar lo apaga en la mesa, y entonces tampoco entra aquí.
-      const loupe = canvasRef.current
-      if (loupe && loupe.width > 0 && box && !playing && !bare) {
+      // El interruptor lo apaga en la mesa, y entonces tampoco entra aquí. Se
+      // pega sobre la región que el lienzo tiene dibujada — no sobre la que se
+      // ve — porque son la misma salvo mientras se arrastra, y ahí manda la que
+      // está pintada.
+      const layer = canvasRef.current
+      const at = shownFocus.current
+      if (layer && at && layer.width > 0 && focus && !playing) {
         ctx.imageSmoothingEnabled = true
         ctx.imageSmoothingQuality = 'high'
         ctx.drawImage(
-          loupe,
-          Math.round(box.x * v.videoWidth) - cx,
-          Math.round(box.y * v.videoHeight) - cy,
-          Math.max(1, Math.round(box.w * v.videoWidth)),
-          Math.max(1, Math.round(box.h * v.videoHeight))
+          layer,
+          Math.round(at.x * v.videoWidth) - cx,
+          Math.round(at.y * v.videoHeight) - cy,
+          Math.max(1, Math.round(at.w * v.videoWidth)),
+          Math.max(1, Math.round(at.h * v.videoHeight))
         )
       }
 
@@ -498,7 +496,7 @@ export function Player({
     } catch (err) {
       onError(explain(err instanceof Error ? err.message : String(err), probe.filename))
     }
-  }, [probe.path, probe.filename, frame, onError, visible, cropped, box, playing, bare])
+  }, [probe.path, probe.filename, frame, onError, visible, cropped, focus, playing])
 
   // El aviso de guardado se va solo: es una confirmación, no un estado.
   useEffect(() => {
@@ -510,15 +508,21 @@ export function Player({
   // --- El enfoque ---------------------------------------------------------
 
   /**
-   * Máscara de desenfoque sobre la región elegida: `original + fuerza × (original − desenfocada)`.
+   * Máscara de desenfoque sobre lo que se ve: `original + fuerza × (original − desenfocada)`.
    *
    * No inventa un solo píxel — realza el contraste que ya está en el borde, que
    * es lo que el ojo lee como nitidez. Por eso puede acompañar a un juicio sobre
    * la compresión sin falsearlo, siempre que se recuerde lo que hace: un realce
    * fuerte también le da filo al canto del bloque, y un bloque con filo parece
-   * detalle. Para eso está Comparar.
+   * detalle. Por eso el interruptor está donde se ve y apagarlo es un gesto: la
+   * comparación honesta es la imagen con y sin, y se hace con la misma tecla.
    *
-   * El realce se hace a la resolución a la que la región se está *viendo*, no a
+   * Va sobre **todo el campo visible**, no sobre un recuadro elegido a mano.
+   * Quien acerca al 300 % no quiere subrayar una parte de lo que mira: quiere
+   * que lo que mira se vea. Recortar a mano una región dentro de la región que
+   * el zoom ya recortó era pedir dos veces la misma cosa.
+   *
+   * El realce se hace a la resolución a la que la imagen se está *viendo*, no a
    * la del archivo. Es lo único que sirve para lo que se pide aquí: al acercarse
    * al 300 % la imagen se ve blanda porque la ventana está estirando cada píxel
    * sobre nueve, y un realce hecho antes de ese estiramiento se disuelve en él.
@@ -532,20 +536,30 @@ export function Player({
   const renderFocus = useCallback((): void => {
     const v = videoRef.current
     const canvas = canvasRef.current
-    if (!v || !canvas || !box || !v.videoWidth) return
+    if (!v || !canvas || !v.videoWidth) return
+    // Mientras se arrastra la imagen, el realce se queda como está: sigue pegado
+    // a los mismos píxeles del fotograma, así que acompaña al paneo sin resbalar
+    // — sólo deja de cubrir la franja que va apareciendo, hasta que se suelta.
+    // Rehacerlo sesenta veces por segundo daría un paneo a tirones para adelantar
+    // un realce que se ve un cuadro antes.
+    if (dragRef.current) return
 
-    const sx = Math.round(box.x * v.videoWidth)
-    const sy = Math.round(box.y * v.videoHeight)
-    const sw = Math.max(1, Math.round(box.w * v.videoWidth))
-    const sh = Math.max(1, Math.round(box.h * v.videoHeight))
+    const sx = Math.round(visible.x * v.videoWidth)
+    const sy = Math.round(visible.y * v.videoHeight)
+    const sw = Math.max(1, Math.round(visible.w * v.videoWidth))
+    const sh = Math.max(1, Math.round(visible.h * v.videoHeight))
 
     // Cuántos píxeles de pantalla ocupa hoy cada píxel del video: el ajuste, el
     // zoom y la densidad del monitor, que son las tres formas de estirar lo
-    // mismo. Por debajo de 1 no se estira nada y no hay nada que compensar.
-    const scale = clamp(
-      Math.min(fit * zoom * (window.devicePixelRatio || 1), Math.sqrt(FOCUS_MAX_PIXELS / (sw * sh))),
-      1,
-      FOCUS_MAX_SCALE
+    // mismo. Se trabaja siempre a esa escala, también cuando es menor que 1 — un
+    // 4K alejado se ve reducido, y realzar el original para enseñarlo reducido
+    // sería moler ocho millones de píxeles que nadie va a ver. El tope de tamaño
+    // va en el mismo mínimo y no en un `clamp` con suelo, porque un suelo de 1
+    // devolvería justo el caso que el tope estaba evitando.
+    const scale = Math.min(
+      fit * zoom * (window.devicePixelRatio || 1),
+      FOCUS_MAX_SCALE,
+      Math.sqrt(FOCUS_MAX_PIXELS / (sw * sh))
     )
     const dw = Math.max(1, Math.round(sw * scale))
     const dh = Math.max(1, Math.round(sh * scale))
@@ -555,12 +569,25 @@ export function Player({
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
+    /*
+     * El sitio del lienzo se pone aquí y no en el JSX, en la misma pasada que su
+     * contenido. Son dos caras de un mismo dato — qué región del fotograma es
+     * esta — y separarlas deja un cuadro en el que el lienzo ya se movió pero
+     * todavía muestra lo anterior: el realce resbalando sobre la imagen. Va en
+     * porcentaje del marco, así que el zoom y el paneo lo llevan sin cuentas.
+     */
+    canvas.style.left = `${visible.x * 100}%`
+    canvas.style.top = `${visible.y * 100}%`
+    canvas.style.width = `${visible.w * 100}%`
+    canvas.style.height = `${visible.h * 100}%`
+    shownFocus.current = visible
+
     // El estirado lo hace el motor gráfico y con su mejor filtro: se le pide la
     // misma imagen blanda que se está viendo, para realzar esa y no otra.
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
     ctx.drawImage(v, sx, sy, sw, sh, 0, 0, dw, dh)
-    if (bare || amount <= 0) return
+    if (amount <= 0) return
 
     // El desenfoque se pide con margen y luego se recorta: desenfocar justo el
     // recuadro haría que sus bordes se mezclaran con el vacío de fuera del
@@ -606,31 +633,25 @@ export function Player({
       }
     }
     ctx.putImageData(sharp, 0, 0)
-  }, [box, amount, radius, bare, fit, zoom])
+  }, [visible, amount, radius, fit, zoom])
 
-  // Se rehace en cada cuadro nuevo, así que avanzar con J y K deja la región
-  // enfocada viva sobre el fotograma que se acaba de pedir. Y en cada paso de
-  // zoom, porque el realce se calcula contra la escala a la que se está viendo.
+  // Se rehace en cada cuadro nuevo, así que avanzar con J y K deja el realce
+  // vivo sobre el fotograma que se acaba de pedir. Y en cada paso de zoom o de
+  // paneo, porque de eso depende qué región es y a qué escala se está viendo.
   //
   // Va en un cuadro de animación para que una rueda girada rápido no encadene
   // veinte pasadas de realce que ya nadie va a ver: sólo sobrevive la última.
   useEffect(() => {
-    if (playing) return
+    if (playing || !focus) return
     const raf = requestAnimationFrame(renderFocus)
     return () => cancelAnimationFrame(raf)
-  }, [renderFocus, playing, time, src])
+  }, [renderFocus, playing, focus, time, src])
 
-  /** El punto del puntero en proporción del fotograma. */
-  const framePoint = useCallback((e: ReactPointerEvent): Point | null => {
-    const el = frameRef.current
-    if (!el) return null
-    const r = el.getBoundingClientRect()
-    if (!r.width || !r.height) return null
-    return {
-      x: clamp((e.clientX - r.left) / r.width, 0, 1),
-      y: clamp((e.clientY - r.top) / r.height, 0, 1)
-    }
-  }, [])
+  // Al soltar el arrastre hay que pedirlo a mano: el paneo terminó sin cambiar
+  // nada de lo que el efecto vigila, y la franja que quedó fuera sigue cruda.
+  useEffect(() => {
+    focusRef.current = renderFocus
+  }, [renderFocus])
 
   // --- Teclado ------------------------------------------------------------
 
@@ -717,13 +738,6 @@ export function Player({
     x: Math.max(1, Math.round(visible.w * media.x)),
     y: Math.max(1, Math.round(visible.h * media.y))
   }
-  const selecting = picking && !playing
-  const rect = (b: Box): CSSProperties => ({
-    left: `${b.x * 100}%`,
-    top: `${b.y * 100}%`,
-    width: `${b.w * 100}%`,
-    height: `${b.h * 100}%`
-  })
 
   /**
    * El botón de paso, con sus dos formas de accionarse.
@@ -760,29 +774,15 @@ export function Player({
   return (
     <>
       <div
-        className={`stage${selecting ? ' is-picking' : canPan ? ' can-pan' : ''}`}
+        className={`stage${canPan ? ' can-pan' : ''}`}
         ref={stageRef}
         onPointerDown={(e) => {
           draggedRef.current = false
-          if (selecting) {
-            const p = framePoint(e)
-            if (!p) return
-            e.currentTarget.setPointerCapture(e.pointerId)
-            drawRef.current = { id: e.pointerId, from: p }
-            setDraft({ x: p.x, y: p.y, w: 0, h: 0 })
-            return
-          }
           if (!canPan) return
           e.currentTarget.setPointerCapture(e.pointerId)
           dragRef.current = { id: e.pointerId, from: { x: e.clientX, y: e.clientY }, pan }
         }}
         onPointerMove={(e) => {
-          const draw = drawRef.current
-          if (draw && draw.id === e.pointerId) {
-            const p = framePoint(e)
-            if (p) setDraft(boxOf(draw.from, p))
-            return
-          }
           const drag = dragRef.current
           if (!drag || drag.id !== e.pointerId) return
           const dx = e.clientX - drag.from.x
@@ -791,23 +791,14 @@ export function Player({
           setPan(clampPan({ x: drag.pan.x + dx, y: drag.pan.y + dy }, zoom))
         }}
         onPointerUp={(e) => {
-          if (drawRef.current?.id === e.pointerId) {
-            drawRef.current = null
-            setDraft(null)
-            // Un recuadro más chico que un 2 % del cuadro fue un clic, no una
-            // selección: enfocar cuatro píxeles no es lo que nadie quiso pedir.
-            if (draft && draft.w > 0.02 && draft.h > 0.02) {
-              setBox(draft)
-              setPicking(false)
-            }
-            return
-          }
-          if (dragRef.current?.id === e.pointerId) dragRef.current = null
+          if (dragRef.current?.id !== e.pointerId) return
+          dragRef.current = null
+          // El paneo terminó: aquí se cobra el realce que el arrastre aplazó.
+          focusRef.current()
         }}
         onPointerCancel={() => {
           dragRef.current = null
-          drawRef.current = null
-          setDraft(null)
+          focusRef.current()
         }}
       >
         {src && (
@@ -840,7 +831,7 @@ export function Player({
                 }
               }}
               onClick={() => {
-                if (draggedRef.current || selecting) return
+                if (draggedRef.current) return
                 togglePlay()
               }}
               onPlay={() => setPlaying(true)}
@@ -851,69 +842,16 @@ export function Player({
               onError={() => setUnplayable(true)}
             />
 
-            {box && !playing && <canvas ref={canvasRef} className="loupe" style={rect(box)} />}
-            {draft && <div className="loupe-draft" style={rect(draft)} />}
+            {/* Sin `style`: el sitio lo escribe `renderFocus` sobre el elemento,
+                junto con el contenido. Un `style` aquí lo pisaría en cada render
+                de React y devolvería el lienzo a la esquina. */}
+            {focus && !playing && !unplayable && <canvas ref={canvasRef} className="focus-layer" />}
           </div>
         )}
 
         {error && (
           <div className="stage-alert">
             <ErrorNotice error={error} />
-          </div>
-        )}
-
-        {box && !playing && (
-          <div className="loupe-card">
-            <span className="mass-k">Enfoque</span>
-            <label>
-              <span className="mass-k">Fuerza</span>
-              <input
-                className="loupe-range"
-                type="range"
-                min={0}
-                max={2}
-                step={0.05}
-                value={amount}
-                aria-label="Fuerza del enfoque"
-                aria-valuetext={`${Math.round(amount * 100)} %`}
-                onChange={(e) => setAmount(Number(e.target.value))}
-              />
-            </label>
-            <label>
-              <span className="mass-k">Radio</span>
-              <input
-                className="loupe-range"
-                type="range"
-                min={0.4}
-                max={4}
-                step={0.1}
-                value={radius}
-                aria-label="Radio del enfoque"
-                aria-valuetext={`${radius.toFixed(1)} píxeles`}
-                onChange={(e) => setRadius(Number(e.target.value))}
-              />
-            </label>
-            {/* Un realce sin con qué compararlo no se puede juzgar: parece mejor
-                siempre, porque no hay a la vista nada que diga cuánto añadió. */}
-            <button
-              type="button"
-              className={`act act-quiet act-mini${bare ? ' is-on' : ''}`}
-              aria-pressed={bare}
-              onClick={() => setBare((b) => !b)}
-              title="Ver la región sin realzar"
-            >
-              Comparar
-            </button>
-            <button
-              type="button"
-              className="act act-quiet act-mini"
-              onClick={() => {
-                setBox(null)
-                setBare(false)
-              }}
-            >
-              Quitar
-            </button>
           </div>
         )}
 
@@ -1140,20 +1078,68 @@ export function Player({
             />
           </div>
 
-          {/* Enfocar exige un fotograma quieto, así que la herramienta no existe
-              mientras el video corre: armarla y que el primer cuadro en marcha la
-              desarme sería peor que no ofrecerla. */}
+          {/*
+            Un interruptor, no una herramienta que armar. Encendido, todo lo que
+            se ve sale realzado; apagado, no. Esa es también la comparación —
+            encender y apagar es ver cuánto añadió — y por eso no hay un botón
+            «Comparar» aparte diciendo lo mismo con otras palabras.
+
+            Encenderlo con el video en marcha lo pausa: el realce necesita un
+            fotograma quieto, y un interruptor encendido que no hace nada visible
+            es exactamente lo que hace pensar que está roto.
+          */}
           <button
             type="button"
-            className={`tkey${picking ? ' is-on' : ''}`}
-            disabled={playing || unplayable || !src}
-            aria-pressed={picking}
-            onClick={() => setPicking((p) => !p)}
-            title="Devolver nitidez a una región del fotograma detenido: realza el borde que el zoom desdibuja"
+            className={`tkey${focus ? ' is-on' : ''}`}
+            disabled={unplayable || !src}
+            aria-pressed={focus}
+            onClick={() => {
+              const next = !focus
+              setFocus(next)
+              if (next) videoRef.current?.pause()
+            }}
+            title="Devolver nitidez a lo que se ve: realza el borde que el zoom desdibuja, sobre la imagen detenida"
           >
             <IconFocus aria-hidden="true" />
             Enfocar
           </button>
+
+          {/* Los dos mandos viven aquí, en la barra, y no en una hoja apoyada
+              sobre la imagen: allí tapaban justo lo que se estaba mirando y,
+              peor, el arrastre de la mesa les robaba el puntero — mover una
+              barra paneaba el video y pulsar un botón no hacía nada. */}
+          {focus && (
+            <div className="tool">
+              <label className="tool-set">
+                <span className="mass-k">Fuerza</span>
+                <input
+                  className="tool-range"
+                  type="range"
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  value={amount}
+                  aria-label="Fuerza del enfoque"
+                  aria-valuetext={`${Math.round(amount * 100)} %`}
+                  onChange={(e) => setAmount(Number(e.target.value))}
+                />
+              </label>
+              <label className="tool-set">
+                <span className="mass-k">Radio</span>
+                <input
+                  className="tool-range"
+                  type="range"
+                  min={0.4}
+                  max={4}
+                  step={0.1}
+                  value={radius}
+                  aria-label="Radio del enfoque"
+                  aria-valuetext={`${radius.toFixed(1)} píxeles`}
+                  onChange={(e) => setRadius(Number(e.target.value))}
+                />
+              </label>
+            </div>
+          )}
 
           {/* El foil va aquí porque aquí está lo único que este módulo escribe
               en el disco. En la otra pantalla lo lleva Comprimir; nunca hay dos

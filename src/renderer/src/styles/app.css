@@ -1232,13 +1232,6 @@ input[type='range']:disabled::-webkit-slider-thumb {
   cursor: grabbing;
 }
 
-/* Dibujar un recuadro no es agarrar la imagen: mientras el enfoque está armado
-   el puntero corta en vez de arrastrar. */
-.stage.is-picking,
-.stage.is-picking:active {
-  cursor: crosshair;
-}
-
 /* El marco lleva el tamaño y la transformación; el video sólo lo rellena.
    Existe para que lo que se apoye encima de la imagen — el recuadro enfocado —
    viaje con el zoom y el paneo sin una sola línea de cálculo propia. */
@@ -1261,51 +1254,29 @@ input[type='range']:disabled::-webkit-slider-thumb {
 
 /* --- El enfoque: los mismos píxeles, realzados ---------------------------- */
 
-/* El lienzo se apoya sobre la región que copia, dentro del marco y en
-   porcentaje, así que el zoom lo escala igual que a la imagen de debajo. Lleva
-   dentro tantos píxeles como los que ocupa en pantalla — el realce se calcula a
-   esa escala — de modo que aquí no queda nada que estirar. Sin
-   `image-rendering`: cuando el lienzo sí tenga que reescalar, que lo haga
-   igual que el video de debajo, o Comparar mentiría. */
-.loupe {
+/* El lienzo se apoya exactamente sobre lo que la mesa deja ver del fotograma,
+   dentro del marco y en porcentaje, así que el zoom y el paneo lo llevan igual
+   que a la imagen de debajo. Lleva dentro tantos píxeles como los que ocupa en
+   pantalla — el realce se calcula a esa escala — de modo que aquí no queda nada
+   que estirar. Sin `image-rendering`: cuando sí tenga que reescalar, que lo haga
+   igual que el video de debajo, o encender y apagar el realce compararía dos
+   cosas distintas.
+
+   Sin borde: no señala una región elegida, cubre lo que se está mirando. Un
+   pelo alrededor sería un marco dentro del marco.
+
+   Las medidas nacen en cero y las escribe `renderFocus` sobre el elemento: un
+   lienzo sin estilo mide 300 × 150 por defecto, y ese sería el parpadeo del
+   primer cuadro. `pointer-events: none` porque está encima del video y, sin
+   ello, se comería el clic que pausa y el arrastre que panea. */
+.focus-layer {
   position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
   display: block;
-}
-
-/* Papel, no foil: el oro es de la acción que compromete trabajo, y enfocar una
-   región no compromete nada. Sobre lo oscuro, un pelo de papel ya destaca. */
-.loupe,
-.loupe-draft {
-  box-shadow: 0 0 0 1px var(--sheet);
-}
-
-.loupe-draft {
-  position: absolute;
-  background: rgba(247, 245, 239, 0.1);
-}
-
-/* Los mandos del enfoque, en una hoja apoyada sobre la mesa: son de la
-   aplicación, no de la imagen, y sobre lo oscuro no se lee. */
-.loupe-card {
-  position: absolute;
-  left: var(--s4);
-  bottom: var(--s4);
-  display: flex;
-  align-items: center;
-  gap: var(--s4);
-  padding: var(--s3) var(--s4);
-  background: var(--sheet-raised);
-  box-shadow: var(--lift-stage);
-}
-
-.loupe-card label {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-}
-
-.loupe-range {
-  width: 92px;
+  pointer-events: none;
 }
 
 .stage-alert {
@@ -1432,6 +1403,18 @@ input[type='range']:disabled::-webkit-slider-thumb {
   display: flex;
   align-items: center;
   gap: var(--s2);
+}
+
+/* Un mando con su etiqueta: la etiqueta es parte del control, así que van en un
+   `label` y el par se mueve junto cuando la fila envuelve. */
+.tool-set {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tool-range {
+  width: 92px;
 }
 
 /* La tecla del transporte: más chica que una acción y con el mismo bisel, para
