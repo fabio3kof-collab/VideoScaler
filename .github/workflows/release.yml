@@ -26,9 +26,11 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # v5 en las dos: las v4 corren sobre Node 20, que GitHub deprecó y el
+      # runner ya estaba forzando a Node 24 con un aviso en cada release.
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
