@@ -1516,6 +1516,14 @@ input[type='range']:disabled::-webkit-slider-thumb {
   color: var(--ink-3);
 }
 
+/* La distancia apuntada por las flechas, en el sitio de la duración. En tinta
+   plena y no en el gris del total: aquello es un dato de fondo que no cambia y
+   esto es algo que está pasando ahora y que se va a cobrar al soltar. */
+.tcode-skip {
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .tframe {
   display: flex;
   align-items: baseline;

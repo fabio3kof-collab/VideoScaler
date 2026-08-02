@@ -47,6 +47,23 @@ const CRAWL_RATE = 0.15
 /** Cuánto hay que sostener antes de que el paso suelto se vuelva marcha. */
 const CRAWL_AFTER_MS = 280
 
+/** El salto de las flechas, y el fino con Mayúsculas. */
+const SEEK_STEP = 5
+const SEEK_FINE = 1
+/**
+ * La cadencia del salto sostenido. No es la repetición del sistema — que va a
+ * treinta por segundo y en cada máquina a la suya — porque a ese ritmo un
+ * segundo de tecla hundida serían dos minutos y medio de video. Con estos
+ * números, un segundo sostenido son veinticinco: una distancia que se puede
+ * apuntar.
+ */
+const SEEK_AFTER_MS = 320
+const SEEK_EVERY_MS = 160
+
+/** El volumen por pulsación suelta y por repetición sostenida. */
+const VOLUME_STEP = 0.05
+const VOLUME_HELD = 0.02
+
 /**
  * El techo del zoom, en escala efectiva. El suelo no es una constante: es lo
  * que mida el propio archivo — no tiene sentido alejarse más allá del fotograma
@@ -65,6 +82,17 @@ const STAGE_PAD = 24
  */
 const FOCUS_MAX_SCALE = 4
 const FOCUS_MAX_PIXELS = 3_000_000
+
+/**
+ * El mínimo del lado mayor de la imagen guardada.
+ *
+ * Sin esto la captura salía a la resolución del recorte, y al 300 % el recorte
+ * son cuatrocientos píxeles de ancho: una imagen que no sirve para enseñar
+ * nada. Es un suelo y no un tamaño fijo — un fotograma entero de un 4K sale a
+ * sus 3840, porque reducirlo para cumplir una cifra sería tirar píxeles reales
+ * que ya estaban ahí.
+ */
+const CAPTURE_MIN_LONG_SIDE = 1920
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
@@ -123,6 +151,8 @@ export function Player({
   const [rate, setRate] = useState(1)
   const [muted, setMuted] = useState(false)
   const [volume, setVolume] = useState(1)
+  /** Segundos apuntados por las flechas y todavía no cobrados. */
+  const [skip, setSkip] = useState(0)
 
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 })
@@ -436,6 +466,63 @@ export function Player({
     v.currentTime = clamp(v.currentTime + seconds, 0, v.duration || 0)
   }, [])
 
+  /*
+   * Las flechas apuntan la distancia; el salto se cobra al soltar.
+   *
+   * Un salto por pulsación obliga al decodificador a rearmar la imagen desde el
+   * cuadro clave anterior cada vez, y sostener la tecla convierte el recorrido
+   * en una sucesión de congelaciones. Aquí la tecla sólo suma: la imagen sigue
+   * corriendo como si nadie la tocara, el número crece a la vista, y al soltar
+   * se hace un único salto de los veintiocho segundos que se hayan apuntado. Un
+   * toque suelto es un salto de cinco y se cobra igual, al soltar — ochenta
+   * milisegundos después, que no se notan.
+   *
+   * Con Mayúsculas el paso es de un segundo: la misma tecla para «por aquí» y
+   * para «justo aquí», que es la pareja que ya forman J y K un cuadro más abajo.
+   */
+  const skipRef = useRef(0)
+  const jumpRef = useRef<{ arm: number; run: number } | null>(null)
+
+  const addSkip = useCallback((seconds: number): void => {
+    const v = videoRef.current
+    const now = v?.currentTime ?? 0
+    const total = v?.duration || duration
+    // Apuntar cien segundos cuando quedan diez es apuntar un número que el video
+    // no puede cumplir: el tope se aplica aquí, para que lo que se lee sea lo
+    // que va a pasar.
+    const next = clamp(skipRef.current + seconds, -now, Math.max(0, total - now))
+    skipRef.current = next
+    setSkip(next)
+  }, [duration])
+
+  const pressJump = useCallback(
+    (dir: number, fine: boolean): void => {
+      if (jumpRef.current) return
+      const step = (fine ? SEEK_FINE : SEEK_STEP) * dir
+      addSkip(step)
+      const held = { arm: 0, run: 0 }
+      jumpRef.current = held
+      held.arm = window.setTimeout(() => {
+        if (jumpRef.current !== held) return
+        held.run = window.setInterval(() => addSkip(step), SEEK_EVERY_MS)
+      }, SEEK_AFTER_MS)
+    },
+    [addSkip]
+  )
+
+  const releaseJump = useCallback((): void => {
+    const held = jumpRef.current
+    if (held) {
+      window.clearTimeout(held.arm)
+      window.clearInterval(held.run)
+      jumpRef.current = null
+    }
+    const pending = skipRef.current
+    skipRef.current = 0
+    setSkip(0)
+    if (pending) seekBy(pending)
+  }, [seekBy])
+
   const onCapture = useCallback(async () => {
     const v = videoRef.current
     if (!v || !v.videoWidth) return
@@ -445,20 +532,28 @@ export function Player({
       // devolverle el fotograma entero le deja el trabajo de recortar en otro
       // programa. El cuadro completo sigue a un botón de distancia: Ajustar.
       //
-      // Recorta, pero no estira: los píxeles salen a la resolución del archivo,
-      // que es donde el bloque de compresión mide lo que mide. Guardar el zoom
-      // pesaría nueve veces más sin añadir un solo píxel de información.
+      // El recorte se estira hasta llegar a 1920 en su lado mayor, guardando la
+      // proporción que tenga; si ya los pasa, se queda como está. A resolución
+      // del archivo, un recorte al 300 % son cuatrocientos píxeles de ancho — el
+      // detalle que se estaba mirando, en un sello. Y el realce, si está
+      // encendido, ya está calculado a la resolución de pantalla: hay más que
+      // copiar aquí que píxeles tiene el recorte en el archivo.
       const cx = Math.round(visible.x * v.videoWidth)
       const cy = Math.round(visible.y * v.videoHeight)
       const cw = Math.max(1, Math.round(visible.w * v.videoWidth))
       const ch = Math.max(1, Math.round(visible.h * v.videoHeight))
+      const k = Math.max(1, CAPTURE_MIN_LONG_SIDE / Math.max(cw, ch))
+      const tw = Math.max(1, Math.round(cw * k))
+      const th = Math.max(1, Math.round(ch * k))
 
       const canvas = document.createElement('canvas')
-      canvas.width = cw
-      canvas.height = ch
+      canvas.width = tw
+      canvas.height = th
       const ctx = canvas.getContext('2d')
       if (!ctx) throw new Error('No se pudo abrir un lienzo para la captura.')
-      ctx.drawImage(v, cx, cy, cw, ch, 0, 0, cw, ch)
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(v, cx, cy, cw, ch, 0, 0, tw, th)
 
       // El realce está a la vista, así que entra en el archivo: apagarlo al
       // escribir daría una imagen distinta de la que llevó a pulsar el botón.
@@ -469,14 +564,12 @@ export function Player({
       const layer = canvasRef.current
       const at = shownFocus.current
       if (layer && at && layer.width > 0 && focus && !playing) {
-        ctx.imageSmoothingEnabled = true
-        ctx.imageSmoothingQuality = 'high'
         ctx.drawImage(
           layer,
-          Math.round(at.x * v.videoWidth) - cx,
-          Math.round(at.y * v.videoHeight) - cy,
-          Math.max(1, Math.round(at.w * v.videoWidth)),
-          Math.max(1, Math.round(at.h * v.videoHeight))
+          (Math.round(at.x * v.videoWidth) - cx) * k,
+          (Math.round(at.y * v.videoHeight) - cy) * k,
+          Math.max(1, Math.round(at.w * v.videoWidth)) * k,
+          Math.max(1, Math.round(at.h * v.videoHeight)) * k
         )
       }
 
@@ -658,6 +751,12 @@ export function Player({
   useEffect(() => {
     if (!active) return
 
+    /* El zoom fino se pide en puntos porcentuales de la escala efectiva, que es
+       la unidad en la que están escritos los topes y la barra: pedirlo en pasos
+       de zoom haría que un punto valiera distinto en cada archivo. */
+    const stepZoom = (points: number): void =>
+      zoomTo((Math.round(fit * zoom * 100) + points) / 100 / fit)
+
     const onKey = (e: KeyboardEvent): void => {
       if (e.ctrlKey || e.altKey || e.metaKey) return
       const target = e.target as HTMLElement | null
@@ -665,11 +764,15 @@ export function Player({
       // Un control enfocado se queda con sus propias teclas: la barra de tiempo
       // necesita las flechas y un botón necesita el espacio.
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
-      if (typing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return
+      if (typing && e.key.startsWith('Arrow')) return
       if ((typing || tag === 'BUTTON') && e.key === ' ') return
 
       switch (e.key.toLowerCase()) {
         case ' ':
+        // La misma orden en la tecla que la tiene por convención y en la inicial
+        // de lo que hace. El espacio se lo disputan los botones enfocados; la P
+        // no se la disputa nadie.
+        case 'p':
           togglePlay()
           break
         // El sistema repite la tecla mientras está hundida; esas repeticiones se
@@ -680,11 +783,36 @@ export function Player({
         case 'k':
           if (!e.repeat) press(1)
           break
+        // Las flechas no saltan aquí: apuntan. El salto se cobra en el keyup.
         case 'arrowleft':
-          seekBy(-5)
+          if (!e.repeat) pressJump(-1, e.shiftKey)
           break
         case 'arrowright':
-          seekBy(5)
+          if (!e.repeat) pressJump(1, e.shiftKey)
+          break
+        // El volumen sí obedece a la repetición del sistema, con un paso más
+        // corto: es una rampa que se oye mientras sube, no una distancia que
+        // haya que apuntar antes de recorrerla.
+        //
+        // Con Mayúsculas, zoom de a un punto — la misma regla que en las flechas
+        // de al lado: la tecla sola da el paso ancho y Mayúsculas da el fino.
+        // Un punto porcentual es el mismo escalón que da la barra de zoom, así
+        // que el número de la barra y el del teclado no pueden desalinearse.
+        case 'arrowup':
+          if (e.shiftKey) {
+            stepZoom(1)
+            break
+          }
+          setVolume((v) => clamp(v + (e.repeat ? VOLUME_HELD : VOLUME_STEP), 0, 1))
+          // Subir el volumen de algo callado es querer oírlo.
+          setMuted(false)
+          break
+        case 'arrowdown':
+          if (e.shiftKey) {
+            stepZoom(-1)
+            break
+          }
+          setVolume((v) => clamp(v - (e.repeat ? VOLUME_HELD : VOLUME_STEP), 0, 1))
           break
         case 'home':
           seekBy(-Infinity)
@@ -715,18 +843,32 @@ export function Player({
     const onKeyUp = (e: KeyboardEvent): void => {
       const key = e.key.toLowerCase()
       if (key === 'j' || key === 'k') release()
+      if (key === 'arrowleft' || key === 'arrowright') releaseJump()
+    }
+
+    // Al perder la ventana no llega el keyup: la marcha se quedaría corriendo y
+    // el salto apuntado se quedaría colgado en la pantalla sin cobrarse nunca.
+    // Se cobra, no se descarta — la distancia ya se pidió.
+    const onBlur = (): void => {
+      release()
+      releaseJump()
     }
 
     window.addEventListener('keydown', onKey)
     window.addEventListener('keyup', onKeyUp)
-    // Al perder la ventana no llega el keyup, y la marcha se quedaría corriendo.
-    window.addEventListener('blur', release)
+    window.addEventListener('blur', onBlur)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('keyup', onKeyUp)
-      window.removeEventListener('blur', release)
+      window.removeEventListener('blur', onBlur)
     }
-  }, [active, togglePlay, press, release, seekBy, zoomTo, zoom])
+  }, [active, togglePlay, press, release, pressJump, releaseJump, seekBy, zoomTo, zoom, fit])
+
+  // Salir del módulo con un salto a medio apuntar lo cobra: es la misma regla
+  // que al perder la ventana, y deja el contador en cero para la próxima vez.
+  useEffect(() => {
+    if (!active) releaseJump()
+  }, [active, releaseJump])
 
   // --- Vista --------------------------------------------------------------
 
@@ -734,10 +876,12 @@ export function Player({
   const savedName = saved?.path.split(/[\\/]/).pop() ?? ''
   /* El tamaño de lo que se va a guardar, dicho antes de guardarlo: es la
      diferencia entre un recorte elegido y un recorte descubierto después. */
-  const cropSize = {
-    x: Math.max(1, Math.round(visible.w * media.x)),
-    y: Math.max(1, Math.round(visible.h * media.y))
-  }
+  const shot = ((): Point => {
+    const w = Math.max(1, Math.round(visible.w * media.x))
+    const h = Math.max(1, Math.round(visible.h * media.y))
+    const k = Math.max(1, CAPTURE_MIN_LONG_SIDE / Math.max(w, h))
+    return { x: Math.max(1, Math.round(w * k)), y: Math.max(1, Math.round(h * k)) }
+  })()
 
   /**
    * El botón de paso, con sus dos formas de accionarse.
@@ -936,8 +1080,8 @@ export function Player({
             className="tkey"
             onClick={togglePlay}
             aria-label={playing ? 'Pausar' : 'Reproducir'}
-            aria-keyshortcuts="Space"
-            title={playing ? 'Pausar (espacio)' : 'Reproducir (espacio)'}
+            aria-keyshortcuts="Space P"
+            title={playing ? 'Pausar (espacio o P)' : 'Reproducir (espacio o P)'}
           >
             {playing ? <IconPause aria-hidden="true" /> : <IconPlay aria-hidden="true" />}
           </button>
@@ -975,6 +1119,11 @@ export function Player({
             step={1 / fps}
             value={Math.min(time, duration)}
             aria-label="Posición en el video"
+            /* El único sitio donde el salto de las flechas está escrito: no hay
+               un botón de «adelantar» en cuya cara ponerlo, y la barra de tiempo
+               es el mando que hace lo mismo con la mano. Sin `aria-keyshortcuts`
+               — enfocada, sus flechas son las suyas y valen un cuadro. */
+            title="Flechas: 5 s — sostenerlas acumula y salta al soltar; con Mayúsculas, 1 s. Con la barra enfocada, un cuadro."
             aria-valuetext={`${formatTimecode(time)} de ${formatTimecode(duration)}`}
             style={
               { '--played': `${duration > 0 ? (time / duration) * 100 : 0}%` } as CSSProperties
@@ -987,9 +1136,21 @@ export function Player({
             }}
           />
 
+          {/* La segunda mitad del reloj dice cuánto dura el video — salvo
+              mientras las flechas apuntan una distancia, y entonces dice esa
+              distancia. Ocupa el mismo sitio a propósito: un contador que
+              apareciera al lado empujaría la barra de tiempo justo mientras se
+              la está usando, y el número saltaría por la pantalla. */}
           <span className="tcode">
             <strong>{formatTimecode(time)}</strong>
-            <span className="tcode-total">/ {formatTimecode(duration)}</span>
+            {skip !== 0 ? (
+              <span className="tcode-skip">
+                {skip > 0 ? '+' : '−'}
+                {Math.round(Math.abs(skip))} s
+              </span>
+            ) : (
+              <span className="tcode-total">/ {formatTimecode(duration)}</span>
+            )}
           </span>
 
           <span className="tframe">
@@ -1021,6 +1182,9 @@ export function Player({
                 value={clamp(zoomPercent, floorPct, ceilPct)}
                 aria-label="Zoom"
                 aria-valuetext={`${zoomPercent} %`}
+                /* Como en la barra de tiempo: el único sitio donde están
+                   escritas las teclas del zoom es el mando que hace lo mismo. */
+                title="Rueda sobre la imagen; − y + de a 25 %; Mayúsculas con flecha arriba o abajo, de a 1 %"
                 onChange={(e) => zoomTo(Number(e.target.value) / 100 / fit)}
               />
               <span className="zoom-v" aria-live="polite" aria-atomic="true">
@@ -1070,6 +1234,8 @@ export function Player({
               step={0.01}
               value={muted ? 0 : volume}
               aria-label="Volumen"
+              aria-keyshortcuts="ArrowUp ArrowDown"
+              title="Volumen (flechas arriba y abajo)"
               aria-valuetext={`${Math.round((muted ? 0 : volume) * 100)} %`}
               onChange={(e) => {
                 setVolume(Number(e.target.value))
@@ -1157,8 +1323,8 @@ export function Player({
               !media.x
                 ? undefined
                 : cropped
-                  ? `Guarda sólo lo que se ve del cuadro ${frame}: ${cropSize.x} × ${cropSize.y} px, sin estirar`
-                  : `Guarda el cuadro ${frame} entero: ${media.x} × ${media.y} px`
+                  ? `Guarda sólo lo que se ve del cuadro ${frame}, a ${shot.x} × ${shot.y} px`
+                  : `Guarda el cuadro ${frame} entero, a ${shot.x} × ${shot.y} px`
             }
           >
             {cropped ? 'Capturar lo visible' : 'Capturar fotograma'}
