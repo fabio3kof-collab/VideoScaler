@@ -35,6 +35,9 @@ colors:
   foil-active-hi: "#c8a63a"
   foil-active-mid: "#b89428"
   foil-active-lo: "#96781f"
+  # La mesa: la única superficie oscura, y sólo bajo la imagen del reproductor.
+  # No es un tema oscuro — es otro material, con otro oficio.
+  stage: "#23211e"
   # Rellenos de hover que no pueden coincidir con el de selección.
   seg-hover: "#f1efe9"
   switch-hover: "#ddd9d0"
@@ -252,6 +255,8 @@ The register is Operate, not persuade. Nothing here sells; the file's identity c
 
 The sheet is paper-coloured, not white, and the ink is not black-on-white theatre either — it is near-black on warm off-white, with two greyed steps below it for hint text and micro-labels. Depth is real: the raised surfaces cast a genuine two-layer offset shadow, and the identity card's corner is *drawn* as a folded dog-ear rather than faked with a gradient. The one anti-reference the build refuses is the default layout of its own category: a big drop zone, one slider, one giant button. VideoScaler rejects that composition explicitly.
 
+The sheet now has two faces. **Reducir** is the sheet of levers described above; **Reproducir** is the table — a dark viewing surface where the same file is played, slowed, magnified to 1:1 and stepped one frame at a time with J and K, and where any frame can be captured to disk. It exists because the product's third principle ("the quality tradeoff must be judgeable before committing") cannot be honoured by a progress bar: to know what a codec did to an image, someone has to stop it and look. Both modules are two rows of the same window and are never on screen together, which is what keeps the single-foil and single-dark-surface rules intact.
+
 **Key Characteristics:**
 - Zero corner radius on every surface, control and chip — no exceptions in the codebase.
 - Parallelogram silhouettes cut with `clip-path`, applied to containers, rules, tabs, chips and buttons — never to text or numeric columns.
@@ -259,6 +264,7 @@ The sheet is paper-coloured, not white, and the ink is not black-on-white theatr
 - Gold foil (`#d4af37`) appears once per screen, on the commit action only.
 - Archivo (variable, width axis in active use) for everything readable; Martian Mono for everything measurable.
 - Layered paper depth via two-stop offset shadows and 1px fold hairlines — no glassmorphism, no glow, one 6px backdrop blur on the header only.
+- Exactly one dark surface (`#23211e`, the player's table) and exactly one gold (the commit action) — both rationed, never decorative.
 
 ## Colors
 
@@ -296,7 +302,16 @@ These are two families, not two colours, and each has a hairline weight and a se
 - **Ink 2** (`#4a4844`): Secondary text — section headings, body copy in the empty state, numeric readouts in the mass bar, unselected segmented labels. 8.5:1 on sheet.
 - **Ink 3** (`#6e6b64`): Micro-labels, hints, units, disabled text. 4.96:1 on sheet — it clears 4.5:1 even at its 9px minimum size.
 
+### The table — the one dark surface
+
+- **Stage** (`#23211e`): the background of the player's viewing area (`.stage`), and the only dark surface in the system. It is a *material*, not a theme: the sheet is where you decide, the table is where you look. A light surround raises a frame's apparent black level and hides exactly the compression blocking the player exists to reveal, which is why every serious image viewer is dark. It stops at the edge of the viewing area; the header and the transport bar on either side of it are still paper.
+- **Stage Line** (`rgba(255,255,255,0.028)`): the same 64px fold lattice as the sheet, drawn in light instead of shadow — the same paper seen from the other side.
+- **Lift Stage** (`0 2px 6px rgba(0,0,0,0.5), 0 16px 44px rgba(0,0,0,0.45)`): the frame's shadow on the table, and the shadow of any paper card resting on it. `--lift` is warm and 6% alpha, which is invisible against `#23211e`; this is its dark-surface counterpart, not a replacement.
+- Text is never set directly on the table. Anything readable — an error, the unplayable-format explanation — sits on a raised sheet card (`.stage-say`) over it.
+
 ### Named Rules
+
+**The One Dark Surface Rule.** `--stage` is licensed for the video viewing area and nothing else. It is not a dark mode, not a "hero" background, and not available to any panel that holds text. If a second dark region appears, the table stops reading as a different material and becomes a theme.
 
 **The Single Foil Rule.** Gold appears once per screen, on the one action that commits work. The build enforces this by handoff, not by discipline: while a job runs, the commit button is `disabled` (and drops to `--mountain-fill`), and the foil moves to the progress fill. When you add a surface, ask which element *commits*; everything else is ink, paper or fold.
 
@@ -338,7 +353,9 @@ Both faces are **self-hosted woff2** in `src/renderer/src/assets/fonts/`, split 
 
 ## Layout
 
-**Frame.** The window is 1180×780 by default with a hard minimum of 900×620 (`src/main/index.ts`). `body` sets `overflow: hidden`; the whole app is a three-row grid (`auto / minmax(0,1fr) / auto`) at `height: 100%` — a fixed header, one scrolling middle, and a fixed mass bar. Only the middle scrolls. There is no mobile: the only responsive range is the resize range, with a single breakpoint at `max-width: 1000px`.
+**Frame.** The window is 1180×780 by default with a hard minimum of 900×620 (`src/main/index.ts`). `body` sets `overflow: hidden`; the whole app is a three-row grid (`auto / minmax(0,1fr) / auto`) at `height: 100%` — a fixed header, one middle band, and a fixed bar at the foot. Only the middle scrolls, and only in the module that scrolls. There is no mobile: the only responsive range is the resize range, with a single breakpoint at `max-width: 1000px`.
+
+**Rows two and three belong to the module.** `App.tsx` owns the header; each module renders *both* remaining rows itself — Reducir gives `.scroll` + `.mass`, Reproducir gives `.stage` + `.transport`. Both modules stay mounted at all times and the inactive one is hidden, so options, scroll position and playhead all survive a switch. Their wrappers are therefore `display: contents` (`.module`), which erases the wrapper from layout and lets its two children speak to the window grid directly; a normal wrapper would collapse both rows into one and break the fixed-frame promise. The hidden module is `display: none`, which takes its focus stops and its keyboard shortcuts out with it.
 
 **The fold lattice.** The app background is two `repeating-linear-gradient`s over `--sheet`: one at 60° (`rgba(120,116,106,0.09)`, 1px line every 64px) and one at 0° (`rgba(120,116,106,0.07)`, same rhythm). It is the paper, not a grid to align to.
 
@@ -356,7 +373,7 @@ Both faces are **self-hosted woff2** in `src/renderer/src/assets/fonts/`, split 
 
 ### Named Rules
 
-**The Fixed Frame Rule.** Header and mass bar never scroll. The mass bar is the product's promise ("ahora → quedará en"), so it stays on screen at every scroll position and in every state, including the empty state, where it degrades to a single line of 10px text.
+**The Fixed Frame Rule.** Header and foot bar never scroll. In Reducir the foot bar is the mass bar — the product's promise ("ahora → quedará en") — so it stays on screen at every scroll position and in every state, including the empty state, where it degrades to a single line of 10px text. In Reproducir the row is the transport instead, and the mass bar is deliberately absent: no compression is being planned there, and quoting a "quedará en" figure beside a video that is only being watched would invent a job nobody asked for. The rule is *there is always a fixed bar that says where you are*, not *there is always a mass bar*.
 
 ## Elevation & Depth
 
@@ -502,6 +519,12 @@ The persistent footer, and the product's proof. Raised sheet, 1px top fold line,
 
 Both readout groups are `aria-live="polite" aria-atomic="true"`, so a screen reader hears the new estimate as one utterance when any lever moves. When no file is loaded the whole bar collapses to one 10px line: "Ningún archivo cargado. Suelta un video en la ventana para empezar."
 
+### Result panel — `.result` / `.result-acts`
+
+Raised sheet, `--lift`, `18px 28px`. Reads `<input size>` → `<output size>` `<−% chip>` in mono, then two quiet actions grouped at the right by `.result-acts` (`margin-left: auto`, 12px apart) — **Ver el resultado** first, **Ver en la carpeta** second. The order is the argument: what follows compressing is not filing the file away, it is checking that it was not ruined, and the figure on the left says how much it weighs, not how it looks.
+
+**Ver el resultado** loads the output as *the* loaded file and switches to Reproducir. It deliberately does not open a second file alongside the first: the window holds one file and two modules, and holding two would leave the user unsure which one the commit button is about to compress. The cost is that the result panel disappears when you go and look — accepted, because the identity card at the top immediately states the new weight, which is the same comparison with less to remember.
+
 ### Chips — `.mass-drop`, `.density`
 
 `2px 9px`, clipped with an 8px notch, no radius.
@@ -538,11 +561,46 @@ A centred 520px column: a 168×148 hand-drawn SVG (the unfolded sheet in `--moun
 
 A fixed, pointer-events-none overlay with a 3px `--foil` border and a `rgba(212,175,55,0.06)` wash. Drag depth is counted in a ref so nested `dragleave` events do not flicker it off.
 
+### Module tabs — `.tabs` / `.tab`
+
+Two flaps of the same sheet, in the header beside the wordmark: **Reducir** and **Reproducir**. They appear only once a file is loaded — with nothing loaded there is nothing to reduce or to watch.
+
+`10px/600` uppercase Archivo at width 108% and `0.13em`, `8px 18px`, clipped to a 9px-notch parallelogram, `--ink-3` at rest. **Hover:** `--mountain-fill` + `--ink`. **Selected:** `--sheet-sunk`, `--ink`, `inset 0 -2px 0 var(--ink)` — the Neutral Selection Rule, same as `.seg`. **Focus:** composes the ring with the underline, same cascade reason as the segmented control, and the rule lives in the focus block at the foot of the file.
+
+`role="tablist"` / `role="tab"` with `aria-selected`, `aria-controls` pointing at its own panel, roving tabindex, and Arrow Left/Right/Up/Down wrapping the selection with focus following it. Each module wrapper is the matching `role="tabpanel"` with `aria-labelledby`.
+
+### The table — `.stage` (signature component)
+
+The player's viewing area: a full-bleed dark band between header and transport, `display: grid; place-items: center`, `overflow: hidden`, carrying the 64px fold lattice in light (`--stage-line`) instead of shadow.
+
+- **The frame** (`.stage-video`) is sized in explicit pixels — width and height computed from the source dimensions and the measured stage, not `object-fit` — so the element box *is* the picture, which is what makes pan clamping and the 1:1 zoom exact. Zoom and pan are one `transform: translate() scale()` with `will-change: transform`, so neither forces layout. Its idle background is `--ink`, not a new black.
+- **Zoom** is continuous from 10% to 1600%, driven by the wheel (anchored on the cursor, via a non-passive native listener so Ctrl+wheel cannot zoom the whole interface instead), by the `−`/`+` keys of the zoom group at 1.25× per step, and by two quiet mini actions: **Ajustar** (whole frame visible) and **1:1** (one video pixel per screen pixel — the only view where a compression block is its true size). The readout is the *effective* scale (`fit × zoom`), so a 4K file fitted into the window honestly reads 45%, not 100%.
+- **Pan** appears only when the image overflows the table: `cursor: grab`/`grabbing`, pointer-captured drag, offsets clamped so the picture can never be thrown off screen. A drag of more than 3px suppresses the click, so panning never toggles playback.
+- **`.stage-say`** is a raised paper card centred over the table (absolutely positioned — as a grid child it would push the frame out of the way instead of covering it), max 520px, `--lift-stage`. It carries the unplayable-container explanation and its **Preparar vista previa** action, and while that runs, a `sweep` fold crosses the foot of the card (`.stage-work`) — the same "the piece that is working says so" idiom as the update button, and stopped-but-visible under reduced motion for the same reason.
+- **`.stage-alert`** pins an error notice across the top of the table without covering the frame.
+
+### Transport — `.transport` (signature component)
+
+The player's fixed foot bar, built like the mass bar (raised sheet, 1px top fold line, upward shadow) but stacked in two lines with a 12px gap.
+
+**Line one — where you are:** the file name, play/pause, the two frame steps, the scrub bar (`flex: 1`), the timecode, the frame counter. The name (`.tname`, 11px `--ink-2`, capped at 240px with an ellipsis and the full path in `title`) leads the line because *what* you are watching comes before the controls for watching it — and it stopped being optional the moment "Ver el resultado" started bringing in a file the user never opened: without it, an original and its lighter version are two identical videos on an unlabelled table. The `vista previa` marker sits beside it, since it qualifies the same thing. **Line two — how you are looking:** speed, zoom, volume, and the capture action pushed to the corner by `margin-left: auto` (not by a `.bar-spacer` — under `flex-wrap`, a spacer strands the button at the *left* of the wrapped line).
+
+- **`.tkey`** — the transport key: 6px notch, 30px minimum height, `6px 10px`, raised sheet with a 1px inset mountain hairline, hover `--sheet-sunk`, active `--mountain-fill`. Smaller than `.act` on purpose: a row of seven of them must not compete with the one button that commits work.
+- **`kbd` inside a key** — the shortcut is printed on the key that performs it (`J`, `K`), in Martian Mono at 9px/width 82%/`--ink-3`. A key name is a technical string, so mono is correct here; this is the one non-numeric mono use in the system and it is deliberate. Buttons also carry `aria-keyshortcuts` and a `title`.
+- **`.scrub`** — a 5px track whose played portion is a hard-stop gradient driven by a `--played` custom property, in `--ink-2`: **the foil does not travel here.** Playback progress commits nothing, so it gets ink; the encoder's progress bar keeps the gold. `step={1/fps}` makes the arrow keys on a focused scrub bar move exactly one frame.
+- **`.tcode` / `.tframe`** — mono, `tabular-nums`, with `min-width` floors (148px / 92px) so a running clock never shifts the controls beside it. The current time is 15px/600 in `--ink`; the total is `--ink-3`. `Cuadro` is a 9px micro-label over a mono value, the same key/value construction as the mass bar.
+- **`.zoom`** — three cells creased apart by 1px over `--mountain`: minus key, mono percentage, plus key. The keys drop their own clip and hairline inside the group, because the group is the shape.
+- **Capture** is `.act-commit` — the foil. It is the only thing this module writes to disk, and the Single Foil Rule holds across the app because the two modules are never on screen together.
+
 ### Icons — `Icons.tsx`
 
-Nine hand-drawn icons, no library, no unicode glyphs. Shared base: **16×16, `viewBox="0 0 16 16"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={1.25}`, round cap and join.** Every icon inherits its colour from context, so an icon inside a foil button is foil-ink and an icon inside an alert is `--alert`.
+Seventeen hand-drawn icons, no library, no unicode glyphs. Shared base: **16×16, `viewBox="0 0 16 16"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={1.25}`, round cap and join.** Every icon inherits its colour from context, so an icon inside a foil button is foil-ink and an icon inside an alert is `--alert`.
 
-The grammar is straight edges and pattern-consistent angles: `IconPacket` is the folded packet (the wordmark and the empty-state thesis), `IconSheet` is four cells of the pattern (the deploy toggle), `IconArrow` is direction, `IconChevron` rotates 180° when the sheet deploys, plus `IconAlert`, `IconFolder`, `IconStop`, `IconCheck`, and `IconUpdate` — a straight shaft, a chevron head and a ground line, deliberately *not* the circular arrow every library uses for "reload", because a single curve would give itself away among nothing but creases. New icons must be drawn to the same base, at the same 1.25 stroke, with no curves and no fills — a rounded library glyph gives itself away instantly in a world made of creases.
+The grammar is straight edges and pattern-consistent angles: `IconPacket` is the folded packet (the wordmark and the empty-state thesis), `IconSheet` is four cells of the pattern (the deploy toggle), `IconArrow` is direction, `IconChevron` rotates 180° when the sheet deploys, plus `IconAlert`, `IconFolder`, `IconStop`, `IconCheck`, and `IconUpdate` — a straight shaft, a chevron head and a ground line, deliberately *not* the circular arrow every library uses for "reload", because a single curve would give itself away among nothing but creases.
+
+The player adds eight, and holds the same line where the category's conventions are curved or solid: `IconPlay` and `IconPause` are **outlined**, not filled, because a solid triangle would be the only opaque mass in the interface that is not foil; `IconStepBack` / `IconStepNext` are that triangle against a stop bar; `IconCamera` is a box with a straight-cut viewfinder hump and a **diamond** aperture, since a round one is impossible here; `IconPlus` / `IconMinus` are bare strokes rather than a magnifier, because the magnifier is a circle with a handle and there is no circle to draw; `IconSound` and `IconMute` share one straight-edged cone with chevron waves or a cross.
+
+New icons must be drawn to the same base, at the same 1.25 stroke, with no curves and no fills — a rounded library glyph gives itself away instantly in a world made of creases.
 
 ### Motion
 
@@ -596,6 +654,9 @@ One easing token: `--ease: cubic-bezier(0.16, 1, 0.3, 1)` — a fast-out, long-s
 - **Do** ship any new typeface as a subsetted self-hosted woff2 under `src/renderer/src/assets/fonts/`; the CSP (`default-src 'self'`) blocks every CDN.
 - **Do** separate stacked panels with a 1px gap over a `--mountain` parent instead of per-child borders.
 - **Do** check any new informational mark against `#fdfdfc` for ≥3:1, and give it a shape difference as well as a colour difference.
+- **Do** let a new module own rows two and three of the window grid through a `display: contents` wrapper, and keep it mounted-but-hidden so its state survives a tab switch.
+- **Do** put text on a raised sheet card when it has to be read over the table. `--stage` is a surface for images, not for copy.
+- **Do** print a keyboard shortcut on the control that performs it (`kbd` inside `.tkey`) and back it with `aria-keyshortcuts`. A shortcut nobody can discover is a shortcut nobody uses.
 
 ### Don't:
 - **Don't** put gold foil on anything but the single commit action. Two foil elements competing on one screen breaks the only signal the palette has.
@@ -608,6 +669,9 @@ One easing token: `--ease: cubic-bezier(0.16, 1, 0.3, 1)` — a fast-out, long-s
 - **Don't** shorten an infinite decorative animation under `prefers-reduced-motion` — turn it off. Shortening it makes it faster, not calmer.
 - **Don't** use `--mountain` (1.99:1) to carry meaning, or `--mark-mountain` to draw a plain rule.
 - **Don't** design a mobile or tablet layout. The only responsive range is 900×620 → resize, with one breakpoint at 1000px.
+- **Don't** spread `--stage` beyond the video viewing area. One dark surface, one job; a second one turns a material into a theme.
+- **Don't** put foil on the scrub bar, or on anything else in the transport but the capture button. Playback progress commits nothing.
+- **Don't** reach for a `.bar-spacer` inside a wrapping flex row — use `margin-left: auto` on the item that must stay in the corner.
 
 ## Known inconsistencies
 

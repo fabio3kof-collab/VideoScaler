@@ -104,3 +104,88 @@ export function IconCheck(p: P): JSX.Element {
     </svg>
   )
 }
+
+/*
+ * Transporte del reproductor. Van en contorno como el resto, y no rellenos como
+ * los suele dibujar cualquier reproductor: en esta hoja todo es filete, y un
+ * triángulo macizo sería la única mancha sólida de la interfaz que no es foil.
+ */
+
+export function IconPlay(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M5 3.4 12.8 8 5 12.6Z" />
+    </svg>
+  )
+}
+
+export function IconPause(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M4.6 3.6h2.4v8.8H4.6ZM9 3.6h2.4v8.8H9Z" />
+    </svg>
+  )
+}
+
+/** Un cuadro atrás: el tope contra el que choca la imagen. */
+export function IconStepBack(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M12.4 3.4 5.4 8l7 4.6Z" />
+      <path d="M3.2 3.4v9.2" />
+    </svg>
+  )
+}
+
+export function IconStepNext(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M3.6 3.4 10.6 8l-7 4.6Z" />
+      <path d="M12.8 3.4v9.2" />
+    </svg>
+  )
+}
+
+/** Captura: la caja, el visor y el rombo del diafragma. Ni una curva. */
+export function IconCamera(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M1.8 5.2h3.1l1.3-1.8h3.6l1.3 1.8h3.1v8H1.8Z" />
+      <path d="M8 6.9 9.9 9.2 8 11.5 6.1 9.2Z" />
+    </svg>
+  )
+}
+
+export function IconPlus(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M8 3.4v9.2M3.4 8h9.2" />
+    </svg>
+  )
+}
+
+export function IconMinus(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M3.4 8h9.2" />
+    </svg>
+  )
+}
+
+export function IconSound(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M1.8 6.1h2.7l3.6-2.9v9.6L4.5 9.9H1.8Z" />
+      <path d="M10.4 5.9 12.2 8l-1.8 2.1M12.8 4.2 15.2 8l-2.4 3.8" />
+    </svg>
+  )
+}
+
+export function IconMute(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M1.8 6.1h2.7l3.6-2.9v9.6L4.5 9.9H1.8Z" />
+      <path d="M10.6 6.2 14 9.8M14 6.2l-3.4 3.6" />
+    </svg>
+  )
+}

@@ -1,10 +1,13 @@
 import { basename, dirname, extname, join } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import type { Container, EncodeRequest, JobResult, MediaProbe } from '@shared/types'
+import type { CaptureRequest, Container, EncodeRequest, JobResult, MediaProbe } from '@shared/types'
 import { IPC } from '@shared/ipc'
 import { cancelEncode, runEncode } from './ffmpeg/encode'
+import { makePreview } from './ffmpeg/preview'
 import { probeMedia } from './ffmpeg/probe'
 import { resolveFfmpeg } from './ffmpeg/paths'
+import { grantMedia } from './media'
+import { saveCapture } from './capture'
 import { checkForUpdates, getUpdateState, installUpdate } from './updater'
 
 const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'mov', 'avi', 'webm', 'wmv', 'flv', 'm4v', 'mpg', 'mpeg', 'ts']
@@ -56,6 +59,16 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.cancelEncode, (_e, jobId: string): boolean => cancelEncode(jobId))
+
+  // Reproducir un archivo es leerlo, no procesarlo: el renderer recibe una URL
+  // que sólo sirve para esta ruta y sigue sin ver el disco.
+  ipcMain.handle(IPC.mediaUrl, (_e, path: string): string => grantMedia(path))
+
+  ipcMain.handle(IPC.makePreview, async (_e, path: string): Promise<string> =>
+    grantMedia(await makePreview(path))
+  )
+
+  ipcMain.handle(IPC.saveCapture, (_e, req: CaptureRequest): Promise<string> => saveCapture(req))
 
   ipcMain.handle(IPC.ffmpegStatus, () => resolveFfmpeg(true))
   ipcMain.handle(IPC.appVersion, () => app.getVersion())

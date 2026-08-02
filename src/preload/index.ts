@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
+  CaptureRequest,
   Container,
   EncodeRequest,
   FfmpegStatus,
@@ -29,6 +30,14 @@ const api = {
     ipcRenderer.invoke(IPC.startEncode, req),
 
   cancelEncode: (jobId: string): Promise<boolean> => ipcRenderer.invoke(IPC.cancelEncode, jobId),
+
+  /** URL con la que el reproductor puede leer un archivo local ya elegido. */
+  mediaUrl: (path: string): Promise<string> => ipcRenderer.invoke(IPC.mediaUrl, path),
+
+  /** Copia el archivo a un MP4 temporal cuando Chromium no abre el contenedor. */
+  makePreview: (path: string): Promise<string> => ipcRenderer.invoke(IPC.makePreview, path),
+
+  saveCapture: (req: CaptureRequest): Promise<string> => ipcRenderer.invoke(IPC.saveCapture, req),
 
   ffmpegStatus: (): Promise<FfmpegStatus> => ipcRenderer.invoke(IPC.ffmpegStatus),
 

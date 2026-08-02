@@ -1,13 +1,28 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, protocol, shell } from 'electron'
 import log from 'electron-log'
 import { registerIpc, focusMainWindow } from './ipc'
 import { cancelAll } from './ffmpeg/encode'
+import { clearPreviews } from './ffmpeg/preview'
 import { resolveFfmpeg } from './ffmpeg/paths'
+import { MEDIA_SCHEME, registerMediaProtocol } from './media'
 import { initUpdater } from './updater'
 
 log.initialize()
 log.info(`VideoScaler ${app.getVersion()} arrancando`)
+
+/*
+ * Los privilegios de un esquema se declaran antes de que la aplicación esté
+ * lista; después ya no se pueden conceder. `stream` es el que permite pedir
+ * trozos del archivo, y sin trozos no hay barra de tiempo: buscar un minuto
+ * dentro de un video de dos gigas descargaría los dos gigas.
+ */
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: MEDIA_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true }
+  }
+])
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -54,7 +69,14 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     app.setAppUserModelId('com.karbec.videoscaler')
+    registerMediaProtocol()
     registerIpc()
+
+    // También al arrancar, y no sólo al salir: `before-quit` no espera a que la
+    // promesa termine, y un cierre forzado o un cuelgue dejarían en el temporal
+    // una copia entera de un video. Aquí no hay prisa y nadie tiene el archivo
+    // abierto, así que este es el borrado que de verdad ocurre.
+    void clearPreviews()
     initUpdater()
     createWindow()
 
@@ -77,5 +99,9 @@ app.on('window-all-closed', () => {
 })
 
 // Matar los procesos de FFmpeg en curso: sobreviven al cierre de la app si no
-// se los termina explícitamente.
-app.on('before-quit', cancelAll)
+// se los termina explícitamente. Y borrar las vistas previas, que son copias
+// enteras de los originales y no tienen por qué quedarse en el disco.
+app.on('before-quit', () => {
+  cancelAll()
+  void clearPreviews()
+})

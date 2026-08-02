@@ -858,6 +858,14 @@ input[type='range']:disabled::-webkit-slider-thumb {
   box-shadow: var(--lift);
 }
 
+/* Las dos acciones del resultado viajan juntas a la derecha, en vez de que cada
+   una se empuje sola: son la misma pregunta — ¿y ahora qué hago con esto? */
+.result-acts {
+  display: flex;
+  gap: var(--s3);
+  margin-left: auto;
+}
+
 .result-figure {
   display: flex;
   align-items: baseline;
@@ -1140,6 +1148,364 @@ input[type='range']:disabled::-webkit-slider-thumb {
 }
 
 
+/* --- Pestañas de módulo --------------------------------------------------- */
+
+/*
+ * Dos solapas de la misma hoja, no dos aplicaciones. Van en la cabecera junto
+ * al nombre porque lo que eligen es qué hacer con el archivo, y siguen la regla
+ * de selección neutra del sistema: fondo hundido y filete de tinta abajo, nunca
+ * azul valle — el azul significa «preserva calidad» y no puede además
+ * significar «elegido».
+ */
+.tabs {
+  display: flex;
+  gap: var(--crease);
+  margin-left: var(--s2);
+}
+
+.tab {
+  --notch: 9px;
+  padding: 8px 18px;
+  font-size: 10px;
+  font-weight: 600;
+  font-stretch: 108%;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: transparent;
+  clip-path: polygon(var(--notch) 0, 100% 0, calc(100% - var(--notch)) 100%, 0 100%);
+  transition: background 140ms var(--ease), color 140ms var(--ease);
+}
+
+.tab:hover {
+  color: var(--ink);
+  background: var(--mountain-fill);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--ink);
+  background: var(--sheet-sunk);
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
+
+/*
+ * Cada módulo aporta dos filas a la retícula de la ventana — su cuerpo y su
+ * barra de abajo — así que su envoltorio no puede ser una caja: `contents` lo
+ * borra de la maquetación y deja a los hijos hablar directamente con la
+ * retícula. El que no está en uso se oculta entero, con lo que sus atajos de
+ * teclado y su foco desaparecen con él.
+ */
+.module {
+  display: contents;
+}
+
+.module.is-away {
+  display: none;
+}
+
+/* --- La mesa: el módulo de reproducción ----------------------------------- */
+
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background-color: var(--stage);
+  /* La misma retícula de pliegues de 64px que la hoja, del otro lado del
+     papel: la mesa es la misma superficie vista por detrás. */
+  background-image:
+    repeating-linear-gradient(60deg, transparent 0 63px, var(--stage-line) 63px 64px),
+    repeating-linear-gradient(0deg, transparent 0 63px, var(--stage-line) 63px 64px);
+}
+
+.stage.can-pan {
+  cursor: grab;
+}
+
+/* Un video que no abrió no es una imagen negra: es nada. Sigue montado para
+   poder reintentar con la vista previa, pero deja de ocupar la mesa. */
+.stage-video.is-blank {
+  display: none;
+}
+
+.stage.can-pan:active {
+  cursor: grabbing;
+}
+
+.stage-video {
+  display: block;
+  /* El hueco de la imagen antes del primer fotograma, en tinta y no en un negro
+     nuevo: el sistema ya tiene su tono más oscuro y no necesita otro. */
+  background: var(--ink);
+  box-shadow: var(--lift-stage);
+  /* El zoom se compone en la GPU; sin esto, cada paso de la rueda repinta. */
+  will-change: transform;
+}
+
+.stage-alert {
+  position: absolute;
+  top: var(--s4);
+  left: var(--s4);
+  right: var(--s4);
+  display: flex;
+  justify-content: center;
+}
+
+.stage-alert > * {
+  max-width: 640px;
+}
+
+/* Una hoja de papel apoyada sobre la mesa: lo que hay que leer no se lee sobre
+   lo oscuro, y el mensaje pertenece a la aplicación, no a la imagen.
+
+   Va posicionada y no como una celda más de la retícula: la mesa apila a sus
+   hijos en filas, y en fila la tarjeta empujaba a la imagen hacia arriba en vez
+   de ponerse encima. */
+.stage-say {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  max-width: 520px;
+  padding: var(--s5);
+  background: var(--sheet-raised);
+  box-shadow: var(--lift-stage);
+}
+
+.stage-say h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  font-stretch: 108%;
+  letter-spacing: -0.012em;
+}
+
+.stage-say p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.stage-say .stage-cost {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* Mientras copia, un pliegue recorre el pie de la tarjeta: la misma señal de
+   trabajo que el botón de actualizar, y por la misma razón — aquí nada gira. */
+.stage-work {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 2px;
+  background: var(--mountain-fill);
+}
+
+.stage-work::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  height: 100%;
+  background: var(--mark-valley);
+  animation: sweep 1.15s var(--ease) infinite;
+}
+
+/* --- El transporte -------------------------------------------------------- */
+
+/*
+ * Ocupa el sitio de la barra de masa, y es la misma pieza en otro oficio: la
+ * fila fija de abajo donde el módulo dice dónde está y qué se puede hacer. La
+ * barra de masa no se queda porque en este módulo no hay ninguna promesa de
+ * peso que cumplir — decir «quedará en 24 MB» junto a un video que sólo se está
+ * mirando sería inventar un trabajo que nadie pidió.
+ */
+.transport {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3) var(--s5);
+  border-top: var(--crease) solid var(--mountain);
+  background: var(--sheet-raised);
+  box-shadow: 0 -3px 14px rgba(20, 18, 12, 0.05);
+}
+
+.transport-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.transport-tools {
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+/*
+ * El botón de capturar se empuja solo hacia la derecha en vez de apoyarse en un
+ * separador elástico: cuando la fila envuelve, un separador se queda arriba y
+ * deja al botón caído a la izquierda de la línea nueva, como si se hubiera
+ * escapado. Con el margen, la única acción de la barra siempre termina en la
+ * esquina, envuelva o no.
+ */
+.transport-tools .act-commit {
+  margin-left: auto;
+}
+
+.transport .notice {
+  padding: var(--s2) var(--s3);
+  font-size: 12px;
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* La tecla del transporte: más chica que una acción y con el mismo bisel, para
+   que una fila de siete no compita con el botón que sí compromete trabajo. */
+.tkey {
+  --notch: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 6px 10px;
+  color: var(--ink);
+  background: var(--sheet-raised);
+  box-shadow: inset 0 0 0 var(--crease) var(--mountain);
+  clip-path: polygon(var(--notch) 0, 100% 0, calc(100% - var(--notch)) 100%, 0 100%);
+  transition: background 140ms var(--ease);
+}
+
+.tkey:hover {
+  background: var(--sheet-sunk);
+}
+
+.tkey:active {
+  background: var(--mountain-fill);
+}
+
+/* El atajo va escrito en la tecla que lo ejecuta. Es un nombre de tecla, o sea
+   una cadena técnica, así que va en mono como los números. */
+.tkey kbd {
+  font-family: var(--spec);
+  font-size: 9px;
+  font-stretch: 82%;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+/* Acción pequeña: mismo bisel y misma letra que `.act`, a la escala de una
+   barra de herramientas. */
+.act-mini {
+  --notch: 9px;
+  padding: 7px 14px;
+  font-size: 10px;
+}
+
+/* El nombre del archivo cede ancho antes que ningún mando: si no cabe entero,
+   se corta con puntos suspensivos, pero el transporte no se encoge nunca. */
+.tname {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 240px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.scrub {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* Lo reproducido va en tinta y no en foil: el oro es de la acción que
+   compromete trabajo, y avanzar por el video no compromete nada. */
+.scrub::-webkit-slider-runnable-track {
+  height: 5px;
+  background: linear-gradient(
+    to right,
+    var(--ink-2) 0 var(--played, 0%),
+    var(--mountain-fill) var(--played, 0%) 100%
+  );
+}
+
+.scrub::-webkit-slider-thumb {
+  margin-top: -5px;
+}
+
+.tcode {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 148px;
+  font-family: var(--spec);
+  font-size: 12px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.tcode strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tcode-total {
+  color: var(--ink-3);
+}
+
+.tframe {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 92px;
+}
+
+.zoom {
+  display: flex;
+  align-items: stretch;
+  gap: var(--crease);
+  background: var(--mountain);
+  box-shadow: inset 0 0 0 var(--crease) var(--mountain);
+}
+
+/* Dentro del grupo las teclas pierden el bisel: el que corta es el grupo. */
+.zoom .tkey {
+  clip-path: none;
+  box-shadow: none;
+}
+
+.zoom-v {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  padding: 0 var(--s2);
+  font-family: var(--spec);
+  font-size: 12px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  background: var(--sheet-raised);
+}
+
+.vol {
+  width: 84px;
+}
+
 /* --- Foco -----------------------------------------------------------------
  *
  * clip-path recorta outline y box-shadow, así que en las formas de
@@ -1167,6 +1533,21 @@ input[type='range']:disabled::-webkit-slider-thumb {
 
 .switch:focus-visible,
 .switch[aria-checked='true']:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+/* Igual que en las opciones: el anillo se compone con el filete de selección
+   en vez de sustituirlo, o la pestaña activa perdería su marca al enfocarse. */
+.tab:focus-visible,
+.tab[aria-selected='true']:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ink), inset 0 -2px 0 var(--ink);
+}
+
+/* Después de `.zoom .tkey`, que le quita la sombra al agruparla: con el orden
+   al revés, las dos teclas del zoom no tendrían anillo de foco. */
+.tkey:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 2px var(--ink);
 }
@@ -1253,6 +1634,22 @@ input[type='range']:disabled::-webkit-slider-thumb {
   .mass-v-strong {
     font-size: 17px;
   }
+
+  .transport {
+    padding: var(--s3) var(--s4);
+  }
+
+  .transport-tools {
+    gap: var(--s3);
+  }
+
+  .tcode {
+    min-width: 128px;
+  }
+
+  .tcode strong {
+    font-size: 13px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1270,8 +1667,10 @@ input[type='range']:disabled::-webkit-slider-thumb {
   }
 
   /* El pliegue que recorre el botón se detiene, pero se queda visible: es la
-     única señal de que sigue trabajando, y apagarla dejaría el botón mudo. */
-  .bar-update.is-working::after {
+     única señal de que sigue trabajando, y apagarla dejaría el botón mudo.
+     Lo mismo vale para el de la vista previa, que puede tardar un minuto. */
+  .bar-update.is-working::after,
+  .stage-work::after {
     animation: none !important;
     width: 100%;
   }

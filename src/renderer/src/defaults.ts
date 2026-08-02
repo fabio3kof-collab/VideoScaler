@@ -53,6 +53,23 @@ export function formatBytes(bytes: number | null): string {
   return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[unit]}`
 }
 
+/**
+ * m:ss.cc — el reloj del reproductor.
+ *
+ * Aparte de `formatDuration` y no en vez de él: una duración se lee en
+ * segundos enteros, pero quien avanza cuadro a cuadro necesita ver moverse algo
+ * más fino que el segundo, o el botón parece no hacer nada.
+ */
+export function formatTimecode(seconds: number | null): string {
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return '—'
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = Math.floor(seconds % 60)
+  const cs = Math.floor((seconds % 1) * 100)
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `${h > 0 ? `${h}:${pad(m)}` : m}:${pad(s)}.${pad(cs)}`
+}
+
 export function formatDuration(seconds: number | null): string {
   if (seconds === null || !Number.isFinite(seconds) || seconds < 0) return '—'
   const s = Math.round(seconds)

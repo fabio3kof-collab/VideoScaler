@@ -166,6 +166,19 @@ export interface EncodeRequest {
 }
 
 // ---------------------------------------------------------------------------
+// Reproducción y captura
+// ---------------------------------------------------------------------------
+
+export interface CaptureRequest {
+  /** El video del que salió el fotograma: la imagen se guarda a su lado. */
+  sourcePath: string
+  /** Número de cuadro, para nombrar el archivo con algo que se pueda buscar. */
+  frame: number
+  /** PNG ya codificado por el renderer. */
+  data: Uint8Array
+}
+
+// ---------------------------------------------------------------------------
 // Entorno
 // ---------------------------------------------------------------------------
 

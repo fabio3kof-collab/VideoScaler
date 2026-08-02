@@ -82,6 +82,23 @@
   --foil: #d4af37;
   --foil-ink: #241c05;
 
+  /*
+   * La mesa: la única superficie oscura del sistema, y sólo bajo la imagen.
+   *
+   * No es un cambio de tema ni una licencia para oscurecer otras zonas. Es un
+   * material distinto con un trabajo distinto: la hoja es donde se decide, la
+   * mesa es donde se mira. Un gris claro alrededor de un fotograma le sube el
+   * negro aparente y esconde justo el bloque de compresión que este módulo
+   * existe para enseñar — que es la razón por la que todo visor de imagen serio
+   * es oscuro. Se queda dentro del recuadro del video; el resto sigue siendo
+   * papel.
+   */
+  --stage: #23211e;
+  --stage-line: rgba(255, 255, 255, 0.028);
+  /* La imagen levantada sobre la mesa: `--lift` es cálido y al 6 % desaparece
+     contra lo oscuro, así que aquí la sombra es propia. */
+  --lift-stage: 0 2px 6px rgba(0, 0, 0, 0.5), 0 16px 44px rgba(0, 0, 0, 0.45);
+
   /* Señal */
   --alert: #a33a22;
   --alert-fill: #f6e6e1;
