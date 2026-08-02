@@ -14,7 +14,13 @@ import type {
   UpdateState,
   VideoCodec
 } from '@shared/types'
-import { DEFAULT_OPTIONS, QUALITY_RANGE, formatBytes, formatDuration } from './defaults'
+import {
+  DEFAULT_OPTIONS,
+  QUALITY_RANGE,
+  formatBytes,
+  formatDuration,
+  formatKilobytes
+} from './defaults'
 import { estimateWeight, scaledPixels } from './estimate'
 import { explain, type FriendlyError } from './errors'
 import { Crease, Segmented, Slider, Switch } from './Crease'
@@ -52,6 +58,34 @@ const PRESETS = [
   { value: 'slower' as const, label: 'Más lento' },
   { value: 'veryslow' as const, label: 'Máximo' }
 ]
+
+/**
+ * Un peso dicho dos veces: megabytes arriba, kilobytes debajo y más chicos.
+ *
+ * Los MB son la cifra con la que se decide — es la unidad del límite de
+ * WhatsApp, del correo, del pendrive — pero están redondeados a la décima, y
+ * ahí adentro caben cien kilobytes de diferencia. Los KB no compiten con esa
+ * lectura: van debajo, en gris, para quien necesita el número exacto.
+ */
+function Mass({
+  bytes,
+  strong = false
+}: {
+  bytes: number | null
+  strong?: boolean
+}): JSX.Element {
+  const kb = formatKilobytes(bytes)
+  return (
+    <span className="mass-fig">
+      <span className={strong ? 'mass-v mass-v-strong' : 'mass-v'}>{formatBytes(bytes)}</span>
+      {kb && (
+        <span className="mass-sub" aria-hidden="true">
+          {kb}
+        </span>
+      )}
+    </span>
+  )
+}
 
 /**
  * Reducir: la hoja de palancas y la barra de masa.
@@ -742,9 +776,9 @@ export function Scaler({
           {result?.status === 'done' && (
             <section className="result">
               <div className="result-figure">
-                <span>{formatBytes(result.inputSizeBytes)}</span>
+                <Mass bytes={result.inputSizeBytes} />
                 <IconArrow aria-hidden="true" />
-                <strong>{formatBytes(result.outputSizeBytes)}</strong>
+                <Mass bytes={result.outputSizeBytes} strong />
                 {result.ratio !== null && (
                   <span className="mass-drop">−{Math.round((1 - result.ratio) * 100)}%</span>
                 )}
@@ -787,12 +821,12 @@ export function Scaler({
           <>
             <div className="mass-group">
               <span className="mass-k">Ahora</span>
-              <span className="mass-v">{formatBytes(probe.sizeBytes)}</span>
+              <Mass bytes={probe.sizeBytes} />
             </div>
             <IconArrow aria-hidden="true" className="mass-arrow" />
             <div className="mass-group" aria-live="polite" aria-atomic="true">
               <span className="mass-k">Quedará en</span>
-              <span className="mass-v mass-v-strong">{formatBytes(estimate.bytes)}</span>
+              <Mass bytes={estimate.bytes} strong />
               <span className={`mass-drop${estimate.ratio > 1 ? ' mass-drop-up' : ''}`}>
                 {estimate.ratio > 1 ? '+' : '−'}
                 {Math.abs(Math.round((1 - estimate.ratio) * 100))}%

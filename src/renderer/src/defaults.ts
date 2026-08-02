@@ -54,6 +54,24 @@ export function formatBytes(bytes: number | null): string {
 }
 
 /**
+ * La misma cifra en kilobytes, para poner debajo.
+ *
+ * «4.9 MB» redondea a la décima, y una décima de megabyte son cien kilobytes:
+ * dos ajustes seguidos pueden mover el archivo sin mover el número. Los KB son
+ * la cifra fina que sí acusa el cambio.
+ *
+ * Devuelve `null` cuando el peso no llega al megabyte, porque ahí `formatBytes`
+ * ya está diciendo KB y repetirlo debajo no añade nada.
+ */
+export function formatKilobytes(bytes: number | null): string | null {
+  if (bytes === null || !Number.isFinite(bytes) || bytes < 1024 * 1024) return null
+  // Espacio fino como separador de miles y no punto: al lado de un «4.9 MB»
+  // donde el punto es decimal, «5.008 KB» se lee como cinco.
+  const kb = Math.round(bytes / 1024)
+  return `${kb.toLocaleString('es-ES').replaceAll('.', ' ')} KB`
+}
+
+/**
  * m:ss.cc — el reloj del reproductor.
  *
  * Aparte de `formatDuration` y no en vez de él: una duración se lee en

@@ -21,16 +21,46 @@ export function effectiveDuration(options: EncodeOptions, probe: MediaProbe): nu
   return Math.max(0, end - options.trim.startSec)
 }
 
+/**
+ * Lo que pesa la pista original por segundo.
+ *
+ * ffprobe no siempre declara el bitrate de la pista de audio — en MP4 es común
+ * que falte. Cuando falta, el resto del archivo lo dice: el peso total menos lo
+ * que se lleva el video. Inventar 128 kbps ahí adentro es lo que hacía que un
+ * archivo con audio de 384 kbps saliera muy por encima de lo prometido.
+ */
+function sourceAudioKbps(probe: MediaProbe): number {
+  const audio = probe.audio
+  if (!audio) return 0
+  if (audio.bitrateKbps) return audio.bitrateKbps
+
+  if (probe.durationSec > 0 && probe.sizeBytes > 0 && probe.video?.bitrateKbps) {
+    const totalKbps = (probe.sizeBytes * 8) / probe.durationSec / 1000
+    const rest = Math.round(totalKbps - probe.video.bitrateKbps)
+    // Sólo si el resto tiene forma de pista de audio. El bitrate de video que
+    // declara el contenedor es un promedio y no siempre cuadra con el peso del
+    // archivo; cuando no cuadra, esta resta da cualquier número.
+    if (rest >= 24 && rest <= 640) return rest
+  }
+
+  return audio.channels > 2 ? 384 : 128
+}
+
 export function audioKbpsFor(options: EncodeOptions, probe: MediaProbe): number {
+  // Sin pista de origen no hay pista de salida, elija lo que elija el usuario:
+  // contar un audio que no existe infla la estimación de todos los modos.
+  if (!probe.audio) return 0
+
   switch (options.audio.mode) {
     case 'mute':
       return 0
     case 'copy':
-      return probe.audio?.bitrateKbps ?? 128
-    case 'encode': {
-      const downmixing = options.audio.channels === 1 && (probe.audio?.channels ?? 2) > 1
-      return options.audio.bitrateKbps * (downmixing ? 0.6 : 1)
-    }
+      return sourceAudioKbps(probe)
+    case 'encode':
+      // `-b:a` manda, y no cambia por bajar a mono: FFmpeg entrega los kbps
+      // pedidos repartidos entre menos canales. Descontar aquí por el downmix
+      // dejaba al video con bits de más y el archivo salía por encima.
+      return options.audio.bitrateKbps
   }
 }
 
@@ -91,10 +121,13 @@ export function budgetForTargetSize(options: EncodeOptions, probe: MediaProbe): 
   const budgetBits = options.video.targetSizeMB * 1024 * 1024 * 8 * HEADROOM
   const audioBits = audioKbps * 1000 * duration
   const requestedVideoKbps = (budgetBits - audioBits) / duration / 1000
-  const videoKbps = Math.max(MIN_VIDEO_KBPS, requestedVideoKbps)
+  // Redondeado ya aquí: es el número que se le pasa a FFmpeg en `-b:v`, así que
+  // es el que hay que usar para decir cuánto va a pesar. Estimar con el valor
+  // sin redondear promete un peso que el encoder nunca recibió la orden de dar.
+  const videoKbps = Math.round(Math.max(MIN_VIDEO_KBPS, requestedVideoKbps))
 
   return {
-    videoKbps: Math.round(videoKbps),
+    videoKbps,
     audioKbps,
     requestedVideoKbps: Math.round(requestedVideoKbps),
     reachable: requestedVideoKbps >= MIN_VIDEO_KBPS,

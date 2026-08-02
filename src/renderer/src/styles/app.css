@@ -760,6 +760,19 @@ input[type='range']:disabled::-webkit-slider-thumb {
   color: var(--ink-3);
 }
 
+/* La cifra y su lectura fina, apiladas. Columna y no fila: en fila los KB
+   competirían con los MB por la misma línea, y la decisión se toma en MB. */
+.mass-fig {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: none;
+  line-height: 1.1;
+  /* Una cifra partida en dos líneas deja de ser una cifra. El espacio fino de
+     los miles no rompe, pero el que precede a la unidad sí. */
+  white-space: nowrap;
+}
+
 .mass-v {
   font-family: var(--spec);
   font-size: 15px;
@@ -770,6 +783,17 @@ input[type='range']:disabled::-webkit-slider-thumb {
 .mass-v-strong {
   font-size: 19px;
   font-weight: 600;
+}
+
+/* Debajo y en gris: es la misma cifra sin redondear, no un dato aparte. */
+.mass-sub {
+  margin-top: 1px;
+  font-family: var(--spec);
+  font-size: 10px;
+  font-stretch: 82%;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
 }
 
 .mass-drop {
@@ -888,6 +912,15 @@ input[type='range']:disabled::-webkit-slider-thumb {
   font-size: 17px;
   font-stretch: 88%;
   font-variant-numeric: tabular-nums;
+}
+
+/* El resultado ya tenía su escala; la figura sólo le añade la línea de KB. */
+.result-figure .mass-v {
+  font-size: 17px;
+}
+
+.result-figure .mass-v-strong {
+  font-weight: 600;
 }
 
 .notice {

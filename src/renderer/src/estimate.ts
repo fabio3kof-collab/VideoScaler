@@ -40,7 +40,8 @@ export interface WeightEstimate {
 
 /**
  * Cuántos bits recibe cada píxel, relativo a lo que ese códec necesita para su
- * calidad de referencia. 1 = referencia; por debajo de 1 el video va corto.
+ * calidad de referencia con este material. 1 = referencia; por debajo de 1 el
+ * video va corto.
  *
  * Se devuelve el número y no sólo su cajón porque es la única lectura que
  * responde a cada paso de resolución, cuadros o audio cuando el peso está
@@ -54,11 +55,7 @@ function headroomOf(videoKbps: number, options: EncodeOptions, probe: MediaProbe
   const pixels = w * h * fps
   if (pixels <= 0) return 1
   const bpp = (videoKbps * 1000) / pixels
-  const reference =
-    BPP_REFERENCE *
-    CODEC_EFFICIENCY[options.video.codec] *
-    (PRESET_EFFICIENCY[options.video.preset] ?? 1)
-  return bpp / reference
+  return bpp / referenceBpp(options, probe)
 }
 
 function densityFrom(headroom: number): Density {
@@ -83,11 +80,84 @@ const CRF_REFERENCE: Record<VideoCodec, number> = {
   vp9: 31
 }
 
-/** Bits por píxel de H.264 en su CRF de referencia. Constante sin calibrar. */
-const BPP_REFERENCE = 0.085
+/**
+ * Bits por píxel de H.264 medium en su CRF de referencia, sobre material de
+ * complejidad media. Medido sobre codificaciones reales, no supuesto.
+ */
+const BPP_REFERENCE = 0.08
 
 /** Cuántos puntos de CRF duplican el bitrate. Constante conocida de x264. */
 const CRF_DOUBLING = 6
+
+/**
+ * Cuánto pesa el origen en la estimación por calidad.
+ *
+ * El modelo de bits por píxel solo — resolución, cuadros, códec, CRF — supone
+ * material de complejidad media, y el contenido pesa más que todo lo demás
+ * junto: a CRF 23, un plano fijo y un plano con grano se separan por un factor
+ * de veinte. La única medida de complejidad que tenemos es el propio origen:
+ * lo que le costó a *su* encoder decir lo mismo. Por eso el modelo se ancla en
+ * él con un exponente en vez de ignorarlo.
+ *
+ * No va a 1 porque el bitrate del origen mezcla dos cosas que no podemos
+ * separar: qué tan complejo es el material y qué tan generosa fue la
+ * codificación con la que llegó. El recorte acota lo que puede pasar cuando esa
+ * mezcla engaña: por debajo, un origen ya exprimido no implica que el
+ * re-encode salga gratis; por encima, los bits de más del origen suelen ser
+ * grano que un CRF normal tira a la basura.
+ */
+const COMPLEXITY_WEIGHT = 0.8
+const COMPLEXITY_MIN = 0.15
+const COMPLEXITY_MAX = 1.6
+
+/**
+ * Eficiencia del códec con el que llegó el archivo, para leer su bitrate en la
+ * misma escala que el de salida. 2 Mbps de MPEG-4 y 2 Mbps de AV1 no describen
+ * material igual de complejo.
+ */
+const SOURCE_EFFICIENCY: Record<string, number> = {
+  h264: 1,
+  avc1: 1,
+  hevc: 0.62,
+  h265: 0.62,
+  av1: 0.5,
+  vp9: 0.72,
+  vp8: 1.1,
+  theora: 1.2,
+  wmv3: 1.3,
+  mpeg4: 1.6,
+  msmpeg4v3: 1.6,
+  mpeg2video: 2.2
+}
+
+/** Bitrate de video del origen, con el peso total como red de seguridad. */
+function sourceVideoKbps(probe: MediaProbe): number | null {
+  if (probe.video?.bitrateKbps) return probe.video.bitrateKbps
+  if (probe.durationSec > 0 && probe.sizeBytes > 0) {
+    const totalKbps = (probe.sizeBytes * 8) / probe.durationSec / 1000
+    const rest = totalKbps - (probe.audio?.bitrateKbps ?? (probe.audio ? 128 : 0))
+    if (rest > 20) return rest
+  }
+  return null
+}
+
+/**
+ * Cuánto se aparta el origen del material de complejidad media, ya acotado.
+ * 1 = medio; 1.6 = todo lo complejo que el modelo se atreve a creer.
+ */
+function complexityFactor(probe: MediaProbe): number {
+  const kbps = sourceVideoKbps(probe)
+  if (kbps === null || !probe.video) return 1
+  const pixels = probe.video.width * probe.video.height * (probe.video.fps || 30)
+  if (pixels <= 0) return 1
+  const bpp = (kbps * 1000) / pixels
+  const reference = BPP_REFERENCE * (SOURCE_EFFICIENCY[probe.video.codec] ?? 1)
+  if (reference <= 0) return 1
+  return Math.min(
+    COMPLEXITY_MAX,
+    Math.max(COMPLEXITY_MIN, Math.pow(bpp / reference, COMPLEXITY_WEIGHT))
+  )
+}
 
 /** Un preset más lento aprovecha mejor cada bit a igual calidad. */
 const PRESET_EFFICIENCY: Record<string, number> = {
@@ -104,6 +174,23 @@ const PRESET_EFFICIENCY: Record<string, number> = {
 
 /** Los encoders por hardware son más rápidos y menos eficientes por bit. */
 const ACCEL_PENALTY = 1.25
+
+/**
+ * Los bits por píxel que este material necesita en el CRF de referencia de su
+ * códec, con estos ajustes. Es la vara con la que se mide todo lo demás: de
+ * aquí sale tanto la estimación por calidad como la lectura de holgura, para
+ * que no puedan contradecirse.
+ */
+function referenceBpp(options: EncodeOptions, probe: MediaProbe): number {
+  const { video } = options
+  return (
+    BPP_REFERENCE *
+    CODEC_EFFICIENCY[video.codec] *
+    (PRESET_EFFICIENCY[video.preset] ?? 1) *
+    (video.hardwareAccel === 'none' ? 1 : ACCEL_PENALTY) *
+    complexityFactor(probe)
+  )
+}
 
 /**
  * Mismo truncamiento a par que aplica el filtro de escalado (`trunc(iw*f/2)*2`
@@ -173,12 +260,7 @@ export function estimateWeight(options: EncodeOptions, probe: MediaProbe): Weigh
     const [w, h] = scaledPixels(video.scale, probe.video.width, probe.video.height)
     const fps = video.fps ?? probe.video.fps ?? 30
     const steps = (CRF_REFERENCE[video.codec] - video.quality) / CRF_DOUBLING
-    const bpp =
-      BPP_REFERENCE *
-      Math.pow(2, steps) *
-      CODEC_EFFICIENCY[video.codec] *
-      (PRESET_EFFICIENCY[video.preset] ?? 1) *
-      (video.hardwareAccel === 'none' ? 1 : ACCEL_PENALTY)
+    const bpp = referenceBpp(options, probe) * Math.pow(2, steps)
     vKbps = Math.max(50, (w * h * fps * bpp) / 1000)
     confidence = 'approximate'
   }

@@ -36,6 +36,7 @@ function runPass(
   onProgress: (p: JobProgress) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    const isFinalPass = passOffset === passCount - 1
     const child = spawn(ffmpegPath, args, { windowsHide: true })
     running.set(jobId, { child, canceled: false })
 
@@ -67,7 +68,10 @@ function runPass(
         speed,
         fps: Number.parseFloat(fields.fps ?? '') || null,
         etaSec: speed && speed > 0 ? Math.max(0, remaining / speed) : null,
-        outSizeBytes: Number(fields.total_size) || null
+        // La primera pasada escribe al sumidero nulo: su `total_size` no es el
+        // peso de nada. Mostrarlo hacía que el contador arrancara en cero y
+        // volviera atrás al empezar la segunda pasada.
+        outSizeBytes: isFinalPass ? Number(fields.total_size) || null : null
       })
     })
 
