@@ -412,6 +412,18 @@ Depth here is paper physics, not Material elevation. There is one shared shadow 
 
 **The Zero Radius Rule.** No `border-radius` anywhere, including new components, including third-party ones. If a control arrives rounded, square it.
 
+## The mark
+
+The application has an official logo, authored by the user and versioned at `Logo/Logo oficial.png` (1199×1199 RGBA): a squared frame in a cyan-to-blue gradient on near-black, with four arrows pushing outward from a pixel grid at the centre. It is the identity of the *package* — the thing that sits on a desktop among thirty other icons — and it obeys operating-system conventions rather than the sheet's: it is round-cornered, it glows, and it is dark. All three are forbidden inside the window.
+
+**Where it appears.** Everything downstream of `build/icon.png`, regenerated with `npm run icon`: the `.exe` icon, the desktop and start-menu shortcuts, the taskbar entry, the installer and uninstaller icons, and the assistant's side panel (`build/installerSidebar.bmp`, the logo on `--ink` at 164×314, the one size NSIS accepts). In development the same PNG is passed to `BrowserWindow` as `icon`, because there is no `.exe` to take it from and the alternative is Electron's own atom in the taskbar.
+
+**Where it does not.** Nowhere in the renderer. The window's own mark is the folded packet (`IconPacket` in the wordmark, `Packet.tsx` in the empty state), drawn in foil on paper in the grammar of the fold. Placing the logo in the header would put a rounded, glowing, dark object on a sheet whose whole argument is flat, matte and light — and would break the Zero Radius Rule, the Single Foil Rule and the One Dark Surface Rule in one element.
+
+### Named Rules
+
+**The Package-Not-Interface Rule.** The logo identifies the application from outside; the packet identifies it from inside. They are allowed to differ, and a future contributor should not "unify" them by importing the gradient into the renderer — nor by regenerating `build/icon.png` from anything other than the file in `Logo/`. The generator is `build/make-icon.mjs`, it takes the logo as its only input, and `npm run dist` / `npm run release` run it before packaging so the shipped icon cannot drift from the source of truth.
+
 ## Components
 
 ### Buttons — `.act`

@@ -29,6 +29,10 @@ win:
     - target: nsis
       arch: [x64]
   artifactName: ${productName}-${version}-setup.${ext}
+  # El logo oficial. De este PNG salen el .ico del ejecutable, el del acceso
+  # directo del escritorio y el del menú inicio. Se regenera desde
+  # `Logo/Logo oficial.png` con `npm run icon`.
+  icon: build/icon.png
 
 nsis:
   oneClick: false
@@ -37,6 +41,10 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: VideoScaler
+  # El panel del asistente: el logo sobre negro. NSIS sólo acepta BMP de 24
+  # bits a 164x314 exactos; lo genera `npm run icon`. El desinstalador hereda
+  # esta misma imagen.
+  installerSidebar: build/installerSidebar.bmp
   # Sin esto, cada actualización deja atrás la versión anterior.
   deleteAppDataOnUninstall: false
 

@@ -1,6 +1,6 @@
 {
   "name": "videoscaler",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Reduce el peso de tus videos con la menor pérdida de calidad posible.",
   "main": "./out/main/index.js",
   "author": "Karbec",
@@ -13,10 +13,10 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "icon": "node build/make-icon.mjs build/icon.png",
+    "icon": "node build/make-icon.mjs",
     "pack:dir": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder --win",
-    "release": "npm run build && electron-builder --win --publish always",
+    "dist": "npm run icon && npm run build && electron-builder --win",
+    "release": "npm run icon && npm run build && electron-builder --win --publish always",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {

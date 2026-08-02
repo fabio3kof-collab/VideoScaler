@@ -24,6 +24,16 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
+/*
+ * El icono de la ventana sólo hace falta en desarrollo: la aplicación empacada
+ * ya lo toma del ejecutable, que electron-builder marca con `build/icon.png`.
+ * En `electron-vite dev` no hay ejecutable propio, y sin esto la barra de
+ * tareas muestra el átomo de Electron en lugar del logo.
+ */
+function devIcon(): string | undefined {
+  return app.isPackaged ? undefined : join(import.meta.dirname, '../../build/icon.png')
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1180,
@@ -31,6 +41,7 @@ function createWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 620,
     show: false,
+    icon: devIcon(),
     // Fondo hoja: evita un destello negro antes de que el renderer monte.
     backgroundColor: '#f7f7f7',
     autoHideMenuBar: true,
