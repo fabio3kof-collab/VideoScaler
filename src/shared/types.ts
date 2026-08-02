@@ -174,6 +174,12 @@ export interface CaptureRequest {
   sourcePath: string
   /** Número de cuadro, para nombrar el archivo con algo que se pueda buscar. */
   frame: number
+  /**
+   * El zoom dejaba parte del cuadro fuera de la mesa y la imagen es sólo esa
+   * parte. Va en el nombre: un recorte y el fotograma entero del mismo cuadro
+   * no son el mismo archivo, y quien los busque después necesita distinguirlos.
+   */
+  crop: boolean
   /** PNG ya codificado por el renderer. */
   data: Uint8Array
 }

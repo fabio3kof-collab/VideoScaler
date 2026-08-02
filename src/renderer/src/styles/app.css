@@ -1262,8 +1262,11 @@ input[type='range']:disabled::-webkit-slider-thumb {
 /* --- El enfoque: los mismos píxeles, realzados ---------------------------- */
 
 /* El lienzo se apoya sobre la región que copia, dentro del marco y en
-   porcentaje, así que el zoom lo escala igual que a la imagen de debajo. Sin
-   `image-rendering`: interpolado como el video, o la comparación mentiría. */
+   porcentaje, así que el zoom lo escala igual que a la imagen de debajo. Lleva
+   dentro tantos píxeles como los que ocupa en pantalla — el realce se calcula a
+   esa escala — de modo que aquí no queda nada que estirar. Sin
+   `image-rendering`: cuando el lienzo sí tenga que reescalar, que lo haga
+   igual que el video de debajo, o Comparar mentiría. */
 .loupe {
   position: absolute;
   display: block;

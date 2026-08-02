@@ -22,7 +22,7 @@ async function exists(path: string): Promise<boolean> {
 export async function saveCapture(req: CaptureRequest): Promise<string> {
   const dir = dirname(req.sourcePath)
   const stem = basename(req.sourcePath, extname(req.sourcePath))
-  const base = `${stem}-cuadro-${req.frame}`
+  const base = `${stem}-cuadro-${req.frame}${req.crop ? '-recorte' : ''}`
 
   let target = join(dir, `${base}.png`)
   for (let copy = 2; await exists(target); copy++) {

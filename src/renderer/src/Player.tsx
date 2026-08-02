@@ -57,6 +57,15 @@ const ZOOM_CEILING = 3
 /** Aire alrededor de la imagen cuando está ajustada: la mesa no es un marco. */
 const STAGE_PAD = 24
 
+/**
+ * Los topes del lienzo del enfoque, que trabaja a la resolución a la que se
+ * está *viendo* la región y no a la del archivo. Cuatro veces el original es
+ * más de lo que cualquier zoom pide, y cuatro millones de píxeles es un realce
+ * que sigue cabiendo en un cuadro de pantalla sin hacerla saltar.
+ */
+const FOCUS_MAX_SCALE = 4
+const FOCUS_MAX_PIXELS = 4_000_000
+
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
@@ -130,7 +139,7 @@ export function Player({
   const [radius, setRadius] = useState(1.2)
   const [bare, setBare] = useState(false)
 
-  const [saved, setSaved] = useState<string | null>(null)
+  const [saved, setSaved] = useState<{ path: string; crop: boolean } | null>(null)
 
   // Los cuadros por segundo salen del sondeo y no del elemento de video, porque
   // el elemento no los expone. Sin ellos no hay paso cuadro a cuadro.
@@ -254,6 +263,27 @@ export function Player({
   const overflowX = Math.max(0, (shown.x * zoom - stage.x) / 2)
   const overflowY = Math.max(0, (shown.y * zoom - stage.y) / 2)
   const canPan = overflowX > 0 || overflowY > 0
+
+  /**
+   * Lo que la mesa deja ver del fotograma, en proporción del cuadro entero.
+   *
+   * Con la imagen ajustada es el cuadro completo; acercada, el trozo que cabe.
+   * Sale del mismo paneo y el mismo zoom que la transformación de la imagen, así
+   * que no es una estimación de lo que se ve: es exactamente lo que se ve.
+   */
+  const visible = useMemo<Box>(() => {
+    const w = shown.x * zoom
+    const h = shown.y * zoom
+    if (!w || !h || !stage.x || !stage.y) return { x: 0, y: 0, w: 1, h: 1 }
+    const left = clamp(0.5 + (-stage.x / 2 - pan.x) / w, 0, 1)
+    const right = clamp(0.5 + (stage.x / 2 - pan.x) / w, 0, 1)
+    const top = clamp(0.5 + (-stage.y / 2 - pan.y) / h, 0, 1)
+    const bottom = clamp(0.5 + (stage.y / 2 - pan.y) / h, 0, 1)
+    return { x: left, y: top, w: right - left, h: bottom - top }
+  }, [shown.x, shown.y, stage.x, stage.y, pan.x, pan.y, zoom])
+
+  /** Queda cuadro fuera de la mesa: lo que se ve ya no es el fotograma entero. */
+  const cropped = visible.w < 0.999 || visible.h < 0.999
 
   const clampPan = useCallback(
     (next: Point, z: number): Point => ({
@@ -416,15 +446,41 @@ export function Player({
     const v = videoRef.current
     if (!v || !v.videoWidth) return
     try {
-      // Siempre el fotograma entero y a resolución original: el zoom es para
-      // mirar, no para recortar. Quien acerca al 300 % quiere ver ese detalle,
-      // no llevarse una imagen de un cuarto de pantalla.
+      // Se guarda lo que está en la mesa, no lo que hay detrás de ella. Quien
+      // acercó al 300 % para mirar un detalle y pulsa guardar quiere ese detalle;
+      // devolverle el fotograma entero le deja el trabajo de recortar en otro
+      // programa. El cuadro completo sigue a un botón de distancia: Ajustar.
+      //
+      // Recorta, pero no estira: los píxeles salen a la resolución del archivo,
+      // que es donde el bloque de compresión mide lo que mide. Guardar el zoom
+      // pesaría nueve veces más sin añadir un solo píxel de información.
+      const cx = Math.round(visible.x * v.videoWidth)
+      const cy = Math.round(visible.y * v.videoHeight)
+      const cw = Math.max(1, Math.round(visible.w * v.videoWidth))
+      const ch = Math.max(1, Math.round(visible.h * v.videoHeight))
+
       const canvas = document.createElement('canvas')
-      canvas.width = v.videoWidth
-      canvas.height = v.videoHeight
+      canvas.width = cw
+      canvas.height = ch
       const ctx = canvas.getContext('2d')
       if (!ctx) throw new Error('No se pudo abrir un lienzo para la captura.')
-      ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
+      ctx.drawImage(v, cx, cy, cw, ch, 0, 0, cw, ch)
+
+      // El realce está a la vista, así que entra en el archivo: apagarlo al
+      // escribir daría una imagen distinta de la que llevó a pulsar el botón.
+      // Comparar lo apaga en la mesa, y entonces tampoco entra aquí.
+      const loupe = canvasRef.current
+      if (loupe && loupe.width > 0 && box && !playing && !bare) {
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
+        ctx.drawImage(
+          loupe,
+          Math.round(box.x * v.videoWidth) - cx,
+          Math.round(box.y * v.videoHeight) - cy,
+          Math.max(1, Math.round(box.w * v.videoWidth)),
+          Math.max(1, Math.round(box.h * v.videoHeight))
+        )
+      }
 
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, 'image/png')
@@ -434,14 +490,15 @@ export function Player({
       const path = await window.videoscaler.saveCapture({
         sourcePath: probe.path,
         frame,
+        crop: cropped,
         data: new Uint8Array(await blob.arrayBuffer())
       })
       onError(null)
-      setSaved(path)
+      setSaved({ path, crop: cropped })
     } catch (err) {
       onError(explain(err instanceof Error ? err.message : String(err), probe.filename))
     }
-  }, [probe.path, probe.filename, frame, onError])
+  }, [probe.path, probe.filename, frame, onError, visible, cropped, box, playing, bare])
 
   // El aviso de guardado se va solo: es una confirmación, no un estado.
   useEffect(() => {
@@ -461,9 +518,16 @@ export function Player({
    * fuerte también le da filo al canto del bloque, y un bloque con filo parece
    * detalle. Para eso está Comparar.
    *
-   * Se hace a resolución original y sólo con la imagen detenida: en marcha
-   * habría que rehacerlo veinticinco veces por segundo para mirar algo que se
-   * mueve demasiado rápido para juzgarlo.
+   * El realce se hace a la resolución a la que la región se está *viendo*, no a
+   * la del archivo. Es lo único que sirve para lo que se pide aquí: al acercarse
+   * al 300 % la imagen se ve blanda porque la ventana está estirando cada píxel
+   * sobre nueve, y un realce hecho antes de ese estiramiento se disuelve en él.
+   * Hecho después — sobre los píxeles ya estirados y con el radio estirado igual
+   * — devuelve el filo justo donde el zoom lo deshizo.
+   *
+   * Sólo con la imagen detenida: en marcha habría que rehacerlo veinticinco
+   * veces por segundo para mirar algo que se mueve demasiado rápido para
+   * juzgarlo.
    */
   const renderFocus = useCallback((): void => {
     const v = videoRef.current
@@ -475,12 +539,27 @@ export function Player({
     const sw = Math.max(1, Math.round(box.w * v.videoWidth))
     const sh = Math.max(1, Math.round(box.h * v.videoHeight))
 
-    canvas.width = sw
-    canvas.height = sh
+    // Cuántos píxeles de pantalla ocupa hoy cada píxel del video: el ajuste, el
+    // zoom y la densidad del monitor, que son las tres formas de estirar lo
+    // mismo. Por debajo de 1 no se estira nada y no hay nada que compensar.
+    const scale = clamp(
+      Math.min(fit * zoom * (window.devicePixelRatio || 1), Math.sqrt(FOCUS_MAX_PIXELS / (sw * sh))),
+      1,
+      FOCUS_MAX_SCALE
+    )
+    const dw = Math.max(1, Math.round(sw * scale))
+    const dh = Math.max(1, Math.round(sh * scale))
+
+    canvas.width = dw
+    canvas.height = dh
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
-    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh)
+    // El estirado lo hace el motor gráfico y con su mejor filtro: se le pide la
+    // misma imagen blanda que se está viendo, para realzar esa y no otra.
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, dw, dh)
     if (bare || amount <= 0) return
 
     // El desenfoque se pide con margen y luego se recorta: desenfocar justo el
@@ -493,17 +572,27 @@ export function Player({
     const bh = Math.min(v.videoHeight, sy + sh + pad) - by
 
     const soft = document.createElement('canvas')
-    soft.width = bw
-    soft.height = bh
+    soft.width = Math.max(dw, Math.round(bw * scale))
+    soft.height = Math.max(dh, Math.round(bh * scale))
     const sctx = soft.getContext('2d', { willReadFrequently: true })
     if (!sctx) return
     // El desenfoque lo hace el motor gráfico; a mano serían dos pasadas de
-    // convolución por cada movimiento de la barra.
-    sctx.filter = `blur(${radius}px)`
-    sctx.drawImage(v, bx, by, bw, bh, 0, 0, bw, bh)
+    // convolución por cada movimiento de la barra. El radio va en píxeles del
+    // archivo — es lo que dice el mando — así que aquí se estira con todo lo
+    // demás: si no, al acercarse el realce mordería un detalle cada vez más fino
+    // hasta no tocar el borde que el zoom desdibujó.
+    sctx.filter = `blur(${radius * scale}px)`
+    sctx.imageSmoothingEnabled = true
+    sctx.imageSmoothingQuality = 'high'
+    sctx.drawImage(v, bx, by, bw, bh, 0, 0, Math.round(bw * scale), Math.round(bh * scale))
 
-    const sharp = ctx.getImageData(0, 0, sw, sh)
-    const blurred = sctx.getImageData(sx - bx, sy - by, sw, sh)
+    const sharp = ctx.getImageData(0, 0, dw, dh)
+    const blurred = sctx.getImageData(
+      clamp(Math.round((sx - bx) * scale), 0, soft.width - dw),
+      clamp(Math.round((sy - by) * scale), 0, soft.height - dh),
+      dw,
+      dh
+    )
     // Los tres canales de color; el cuarto es la opacidad y no se toca. El
     // recorte a 0..255 lo haría igual el propio Uint8ClampedArray, pero escrito
     // se lee lo que pasa en un realce fuerte: el blanco se queda en blanco.
@@ -517,13 +606,18 @@ export function Player({
       }
     }
     ctx.putImageData(sharp, 0, 0)
-  }, [box, amount, radius, bare])
+  }, [box, amount, radius, bare, fit, zoom])
 
   // Se rehace en cada cuadro nuevo, así que avanzar con J y K deja la región
-  // enfocada viva sobre el fotograma que se acaba de pedir.
+  // enfocada viva sobre el fotograma que se acaba de pedir. Y en cada paso de
+  // zoom, porque el realce se calcula contra la escala a la que se está viendo.
+  //
+  // Va en un cuadro de animación para que una rueda girada rápido no encadene
+  // veinte pasadas de realce que ya nadie va a ver: sólo sobrevive la última.
   useEffect(() => {
     if (playing) return
-    renderFocus()
+    const raf = requestAnimationFrame(renderFocus)
+    return () => cancelAnimationFrame(raf)
   }, [renderFocus, playing, time, src])
 
   /** El punto del puntero en proporción del fotograma. */
@@ -616,7 +710,13 @@ export function Player({
   // --- Vista --------------------------------------------------------------
 
   const zoomPercent = Math.round(fit * zoom * 100)
-  const savedName = saved?.split(/[\\/]/).pop() ?? ''
+  const savedName = saved?.path.split(/[\\/]/).pop() ?? ''
+  /* El tamaño de lo que se va a guardar, dicho antes de guardarlo: es la
+     diferencia entre un recorte elegido y un recorte descubierto después. */
+  const cropSize = {
+    x: Math.max(1, Math.round(visible.w * media.x)),
+    y: Math.max(1, Math.round(visible.h * media.y))
+  }
   const selecting = picking && !playing
   const rect = (b: Box): CSSProperties => ({
     left: `${b.x * 100}%`,
@@ -865,11 +965,12 @@ export function Player({
       <footer className="transport">
         {saved && (
           <Notice tone="quiet" icon={<IconCheck aria-hidden="true" />}>
-            Fotograma guardado como <code>{savedName}</code>{' '}
+            {saved.crop ? 'Recorte guardado como' : 'Fotograma guardado como'}{' '}
+            <code>{savedName}</code>{' '}
             <button
               type="button"
               className="link"
-              onClick={() => void window.videoscaler.revealInFolder(saved)}
+              onClick={() => void window.videoscaler.revealInFolder(saved.path)}
             >
               Ver en la carpeta
             </button>
@@ -1048,7 +1149,7 @@ export function Player({
             disabled={playing || unplayable || !src}
             aria-pressed={picking}
             onClick={() => setPicking((p) => !p)}
-            title="Enfocar una región del fotograma detenido"
+            title="Devolver nitidez a una región del fotograma detenido: realza el borde que el zoom desdibuja"
           >
             <IconFocus aria-hidden="true" />
             Enfocar
@@ -1056,14 +1157,25 @@ export function Player({
 
           {/* El foil va aquí porque aquí está lo único que este módulo escribe
               en el disco. En la otra pantalla lo lleva Comprimir; nunca hay dos
-              a la vez, porque nunca hay dos módulos a la vez. */}
+              a la vez, porque nunca hay dos módulos a la vez.
+
+              El rótulo cambia con el zoom porque cambia lo que hace: prometer
+              «fotograma» y escribir un recorte sería mentir en el único botón
+              del módulo que toca el disco. */}
           <button
             type="button"
             className="act act-commit"
             disabled={!src || unplayable}
             onClick={() => void onCapture()}
+            title={
+              !media.x
+                ? undefined
+                : cropped
+                  ? `Guarda sólo lo que se ve del cuadro ${frame}: ${cropSize.x} × ${cropSize.y} px, sin estirar`
+                  : `Guarda el cuadro ${frame} entero: ${media.x} × ${media.y} px`
+            }
           >
-            Capturar fotograma
+            {cropped ? 'Capturar lo visible' : 'Capturar fotograma'}
             <IconCamera aria-hidden="true" />
           </button>
         </div>
