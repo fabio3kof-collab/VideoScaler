@@ -1,10 +1,17 @@
-// Genera la gráfica del paquete a partir del logo oficial:
-//   build/icon.png            512x512, de donde salen todos los .ico
-//   build/installerSidebar.bmp  164x314, el panel del asistente de instalación
+// Genera la gráfica de la marca a partir del logo oficial:
+//   build/icon.png                        512x512, de donde salen todos los .ico
+//   build/installerSidebar.bmp            164x314, el panel del asistente
+//   src/renderer/src/assets/logo.png      256x256, la marca dentro de la ventana
 //
 // El logo no se dibuja aquí: es una pieza de diseño que vive en
-// `Logo/Logo oficial.png`. Este script sólo lo lleva a los tamaños y formatos
+// `Logo/Logo oficial 2.png`. Este script sólo lo lleva a los tamaños y formatos
 // que electron-builder y NSIS exigen — y NSIS exige BMP, no hay alternativa.
+//
+// Se usa tal cual, con su fondo. Recortarlo para dejar las esquinas
+// transparentes se probó y se descartó: el brillo de la pieza se derrama fuera
+// de su propio contorno, así que no hay silueta limpia que recortar y el borde
+// queda sucio. Si algún día llega una versión con alfa, el decodificador ya la
+// respeta y no hay nada que cambiar aquí.
 //
 // Sin dependencias de imagen: decodifica el PNG con zlib, remuestrea por área
 // y vuelve a codificar. Añadir `sharp` traería binarios nativos por plataforma
@@ -14,7 +21,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(import.meta.dirname, '..')
-const SRC = process.argv[3] ?? join(ROOT, 'Logo', 'Logo oficial.png')
+const SRC = process.argv[3] ?? join(ROOT, 'Logo', 'Logo oficial 2.png')
 const OUT = process.argv[2] ?? join(ROOT, 'build', 'icon.png')
 const S = 512
 
@@ -127,7 +134,7 @@ function decodePng(file) {
 
 // Un píxel de destino cubre un rectángulo del origen y se lleva el promedio de
 // todo lo que hay dentro, con los bordes pesados por la fracción que tocan.
-// Reducir 1199→512 tomando muestras sueltas dejaría las flechas y la rejilla
+// Reducir 1387→512 tomando muestras sueltas dejaría las flechas y la rejilla
 // del logo con dientes; aquí cada píxel de origen cuenta.
 function resample(src, size) {
   const { w, h, rgba } = src
@@ -288,9 +295,18 @@ if (src.w !== src.h) {
 const png = encodePng(resample(src, S), S)
 mkdirSync(dirname(OUT), { recursive: true })
 writeFileSync(OUT, png)
-console.log(`escrito ${OUT} — ${S}x${S}, ${png.length} bytes, desde ${SRC} (${src.w}x${src.h})`)
+console.log(`escrito ${OUT} — ${S}x${S}, ${png.length} bytes, desde ${SRC}`)
 
 const SIDE = join(dirname(OUT), 'installerSidebar.bmp')
 const bmp = encodeBmp(sidebar(src, 164, 314, 116, [0x0a, 0x0a, 0x0a]), 164, 314)
 writeFileSync(SIDE, bmp)
 console.log(`escrito ${SIDE} — 164x314, ${bmp.length} bytes`)
+
+// La marca dentro de la ventana. 256 px sirve a los dos usos con margen: 22 px
+// en el wordmark y 132 px en el estado vacío, ambos en pantallas al 200%.
+const MARK = 256
+const APP = join(ROOT, 'src', 'renderer', 'src', 'assets', 'logo.png')
+const mark = encodePng(resample(src, MARK), MARK)
+mkdirSync(dirname(APP), { recursive: true })
+writeFileSync(APP, mark)
+console.log(`escrito ${APP} — ${MARK}x${MARK}, ${mark.length} bytes`)

@@ -19,16 +19,6 @@ const base = {
   strokeLinejoin: 'round' as const
 }
 
-/** Paquete plegado: la hoja en reposo. */
-export function IconPacket(p: P): JSX.Element {
-  return (
-    <svg {...base} {...p}>
-      <path d="M3 4.2 8 2l5 2.2v7.6L8 14l-5-2.2Z" />
-      <path d="M3 4.2 8 6.4l5-2.2M8 6.4V14" />
-    </svg>
-  )
-}
-
 /** Hoja desplegada: cuatro celdas del patrón, lo máximo que resiste a 16px. */
 export function IconSheet(p: P): JSX.Element {
   return (

@@ -1,12 +1,15 @@
 import type { JSX } from 'react'
 import type { FriendlyError } from './errors'
 import { IconAlert, IconArrow } from './Icons'
+import logo from './assets/logo.png'
 
 /**
  * Estado vacío: la hoja en reposo.
  *
- * El paquete es la tesis de la ventana en una imagen — algo grande guardado en
- * algo pequeño. Se dibuja, no se ilustra con un icono de librería.
+ * La figura es la marca oficial. Antes fue el paquete de foil dibujado en la
+ * gramática del pliegue, y la razón para cambiarlo no es estética sino de
+ * identidad: la pantalla vacía es la primera vez que alguien ve la aplicación
+ * después del icono que abrió, y las dos imágenes tienen que ser la misma.
  */
 export function Packet({
   onPick,
@@ -23,28 +26,7 @@ export function Packet({
     <div className={`packet-wrap${dragging ? ' dropping' : ''}`}>
       <div className="packet">
         <div className={`packet-figure${probing ? ' is-probing' : ''}`} aria-hidden="true">
-          <svg viewBox="0 0 168 148">
-            {/* La hoja desplegada, tenue: lo que el paquete contiene. */}
-            <g stroke="var(--mountain)" strokeWidth="1" fill="none" opacity="0.85">
-              <path d="M62 30 96 14l34 16 34-16v58l-34 16-34-16-34 16Z" />
-              <path d="M96 14v58M130 30v58M62 59h102" />
-            </g>
-            {/* Pliegues valle, marcando la dirección del despliegue. */}
-            <g stroke="var(--valley-line)" strokeWidth="1" fill="none" opacity="0.9">
-              <path d="M62 30 96 46l34-16 34 16" />
-            </g>
-            {/* El paquete de foil: compacto, denso, con la tesis dentro. */}
-            <g>
-              <path d="M12 74 46 58l34 16v40L46 130 12 114Z" fill="var(--foil)" />
-              <path
-                d="M12 74 46 90l34-16M46 90v40"
-                stroke="#8a6c18"
-                strokeWidth="1"
-                fill="none"
-                opacity="0.55"
-              />
-            </g>
-          </svg>
+          <img src={logo} alt="" width={128} height={128} />
         </div>
 
         {probing ? (

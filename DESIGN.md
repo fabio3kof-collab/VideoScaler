@@ -272,7 +272,7 @@ A warm paper palette: three sheet tones, three ink steps, two fold families (a g
 
 ### Primary
 
-- **Foil Gold** (`#d4af37`): The commit colour. It appears on `.act-commit` as a three-stop 103° gradient (`#e8c85e` → `#d4af37` → `#b38f2a`), on the progress bar fill (`#d4af37` → `#e8c85e`), on the folded packet in the empty state, and as the 3px drag-target border. Nothing else may take it.
+- **Foil Gold** (`#d4af37`): The commit colour. It appears on `.act-commit` as a three-stop 103° gradient (`#e8c85e` → `#d4af37` → `#b38f2a`), on the progress bar fill (`#d4af37` → `#e8c85e`), and as the 3px drag-target border. Nothing else may take it. The gold inside the logo is not this gold and is not governed by this rule — see The mark.
 - **Foil Ink** (`#241c05`): The only text colour permitted on foil. Measures 8.0:1 against the gradient midpoint.
 
 ### Secondary — the fold families
@@ -283,7 +283,7 @@ These are two families, not two colours, and each has a hairline weight and a se
 - **Mountain Fill** (`#e6e4de`): The pressed/inactive fill — segmented `:active`, the switch track at rest, the progress track, the disabled commit button's background.
 - **Mountain Mark** (`#7d7970`): The semantic mountain. Two uses, both informational: the filled parallelogram `.crease-mark-mountain`, and the video share of the split bar in El reparto. 4.26:1 on raised sheet. It is the tone that carries meaning, so it may go anywhere meaning is carried — and nowhere structure is.
 - **Valley Blue** (`#cfe0f2`): The valley fill — the checked switch track, the quiet notice background, the `mass-drop` percentage chip, the `justo` density chip, and the focus underline on fields.
-- **Valley Line** (`#7ba4cd`): The valley hairline — the quiet notice's inset rule, the fold lines in the empty-state packet illustration.
+- **Valley Line** (`#7ba4cd`): The valley hairline — the quiet notice's inset rule. It also drew the fold lines of the empty-state packet illustration, which the logo replaced in 0.2.6.
 - **Valley Mark** (`#4272a3`): The semantic valley. Used on the `.crease-mark-valley` outline, on the checked switch's inset rule, on `.field:focus-within` borders, and as the 1px outline of the split bar's audio share. 4.91:1 on raised sheet.
 - **Valley Ink** (`#2c5479`): Text on any valley fill. 5.88:1 on `#cfe0f2`.
 
@@ -414,15 +414,27 @@ Depth here is paper physics, not Material elevation. There is one shared shadow 
 
 ## The mark
 
-The application has an official logo, authored by the user and versioned at `Logo/Logo oficial.png` (1199×1199 RGBA): a squared frame in a cyan-to-blue gradient on near-black, with four arrows pushing outward from a pixel grid at the centre. It is the identity of the *package* — the thing that sits on a desktop among thirty other icons — and it obeys operating-system conventions rather than the sheet's: it is round-cornered, it glows, and it is dark. All three are forbidden inside the window.
+The application has an official logo, authored by the user and versioned at `Logo/Logo oficial 2.png` (1387×1387 RGBA): a rounded square in deep blue, its border and its four outward arrows drawn in brushed gold, over a pixel grid at the centre, all on a near-black textured field. It is a rendered object with bevels, gloss and a glow — the visual language of an operating-system icon, not of the sheet.
 
-**Where it appears.** Everything downstream of `build/icon.png`, regenerated with `npm run icon`: the `.exe` icon, the desktop and start-menu shortcuts, the taskbar entry, the installer and uninstaller icons, and the assistant's side panel (`build/installerSidebar.bmp`, the logo on `--ink` at 164×314, the one size NSIS accepts). In development the same PNG is passed to `BrowserWindow` as `icon`, because there is no `.exe` to take it from and the alternative is Electron's own atom in the taskbar.
+**Every place the application shows its face.** All of it derives from that one file, via `npm run icon` (`build/make-icon.mjs`):
 
-**Where it does not.** Nowhere in the renderer. The window's own mark is the folded packet (`IconPacket` in the wordmark, `Packet.tsx` in the empty state), drawn in foil on paper in the grammar of the fold. Placing the logo in the header would put a rounded, glowing, dark object on a sheet whose whole argument is flat, matte and light — and would break the Zero Radius Rule, the Single Foil Rule and the One Dark Surface Rule in one element.
+| Output | Where it lands |
+|---|---|
+| `build/icon.png` (512×512) | the `.exe`, the desktop and start-menu shortcuts, the taskbar, the installer and uninstaller icons — electron-builder derives every `.ico` size from it |
+| `build/installerSidebar.bmp` (164×314) | the assistant's side panel, the mark on `--ink`; the one size and format NSIS accepts |
+| `src/renderer/src/assets/logo.png` (256×256) | inside the window: 22px in the wordmark (`.wordmark-mark`), 128px as the empty-state figure (`.packet-figure`) |
+
+One asset serves both in-window sizes, at 256px, so a 200% display still has real pixels under the 128px figure.
+
+**Why it is allowed inside a system that forbids everything it is.** The logo is round-cornered, dark and glossy; the sheet is square, light and matte. The reconciliation is not that the logo was tamed — it is placed whole, with its own background, no border, no shadow, no clip — but that it is *quoted rather than assimilated*. It appears exactly twice, always as the application's own face, never as a surface, a control, or a decoration. The empty state shows it because that screen is the first thing seen after the icon that was double-clicked, and the two images have to be the same image.
+
+It replaced the foil packet — a hand-drawn SVG of a folded parcel over an unfolded sheet — in both places. That drawing is in the history (`Packet.tsx` and `IconPacket`, removed in 0.2.6) and its removal has one incidental benefit: gold now appears **only** on the commit button, which makes the Single Foil Rule literally true for the first time.
+
+**The background is not cut.** Removing the near-black field to get transparent corners was tried and rejected: the artwork's gloss spills past its own silhouette, so a flood-fill cut leaves a ragged edge worse than the honest square. `decodePng` handles alpha correctly, so a future logo delivered with transparency needs no code change.
 
 ### Named Rules
 
-**The Package-Not-Interface Rule.** The logo identifies the application from outside; the packet identifies it from inside. They are allowed to differ, and a future contributor should not "unify" them by importing the gradient into the renderer — nor by regenerating `build/icon.png` from anything other than the file in `Logo/`. The generator is `build/make-icon.mjs`, it takes the logo as its only input, and `npm run dist` / `npm run release` run it before packaging so the shipped icon cannot drift from the source of truth.
+**The Quoted-Mark Rule.** The logo is placed, never restyled and never borrowed from. Its gold is not a token, its blue is not in the palette, its radius licenses no other radius, and its dark field is not a second `--stage`. Two placements exist — the wordmark and the empty-state figure — and a third needs a reason as good as those two. Equally: never regenerate `build/icon.png` from anything but the file in `Logo/`; `npm run dist` and `npm run release` run the generator before packaging precisely so the shipped icon cannot drift from it.
 
 ## Components
 
@@ -557,7 +569,7 @@ One quiet button beside the wordmark, carrying all five update states in its own
 
 - **Placed by ownership, not by symmetry.** It sits at the left, next to the title, because it acts on the *application*; `Otro archivo` sits at the right because it acts on the *file*. The version note stays at the far right as a label, not a control.
 - **It is the only place update state is told.** The body notices were removed rather than kept in sync — the empty state renders no body at all, so a user who had opened the app without a file could never learn a new version existed.
-- **The working animation:** `@keyframes sweep` runs a 2px `--mark-valley` fold across the foot of the button, clipped by the button's own parallelogram. Nothing spins in this world; the piece that is working says so itself, the same way the packet breathes while a file is probed. Under `prefers-reduced-motion` the fold stops but stays at full width — silencing it would leave the button mute, which is worse than still.
+- **The working animation:** `@keyframes sweep` runs a 2px `--mark-valley` fold across the foot of the button, clipped by the button's own parallelogram. Nothing spins in this world; the piece that is working says so itself, the same way the mark breathes while a file is probed. Under `prefers-reduced-motion` the fold stops but stays at full width — silencing it would leave the button mute, which is worse than still.
 - **Disabled is now reachable.** `.act-quiet:disabled` was provisioned but never rendered; while checking or downloading, this button is genuinely disabled.
 - Error notices reveal technical detail behind a `.link` toggle ("Ver detalle técnico"), rendered into `.detail` — mono at width 82% on `rgba(255,255,255,0.6)` with `overflow-wrap: anywhere`.
 
@@ -567,7 +579,9 @@ A 5px `--mountain-fill` track with an overflow-hidden foil gradient fill. The fi
 
 ### Empty state — `.packet`
 
-A centred 520px column: a 168×148 hand-drawn SVG (the unfolded sheet in `--mountain` hairlines, valley fold lines in `--valley-line`, and a solid `--foil` folded packet with `#8a6c18` crease lines at 0.55 opacity), a 34px display headline, a 44ch paragraph, and one commit button. The figure is `aria-hidden`. Two animated variants: `.dropping` (drag over the window) makes it `pulse`; `.is-probing` makes it `breathe`. In the probing branch the copy changes to "Leyendo el archivo" and its paragraph is `aria-live="polite"`.
+A centred 520px column: the 128px mark, a 34px display headline, a 44ch paragraph, and one commit button. The figure is `aria-hidden` and stays a `div` wrapping the image rather than the image alone, because both animated variants hang off that wrapper: `.dropping` (drag over the window) makes it `pulse`; `.is-probing` makes it `breathe`. In the probing branch the copy changes to "Leyendo el archivo" and its paragraph is `aria-live="polite"`.
+
+The class is still `.packet` — it named the folded-parcel drawing that held this slot until 0.2.6, and renaming it would touch nine selectors to say the same thing. The figure it holds is now the logo; see The mark.
 
 ### Drag target — `.app.is-dragging::after`
 
@@ -637,7 +651,7 @@ The player's fixed foot bar, built like the mass bar (raised sheet, 1px top fold
 
 Seventeen hand-drawn icons, no library, no unicode glyphs. Shared base: **16×16, `viewBox="0 0 16 16"`, `fill="none"`, `stroke="currentColor"`, `strokeWidth={1.25}`, round cap and join.** Every icon inherits its colour from context, so an icon inside a foil button is foil-ink and an icon inside an alert is `--alert`.
 
-The grammar is straight edges and pattern-consistent angles: `IconPacket` is the folded packet (the wordmark and the empty-state thesis), `IconSheet` is four cells of the pattern (the deploy toggle), `IconArrow` is direction, `IconChevron` rotates 180° when the sheet deploys, plus `IconAlert`, `IconFolder`, `IconStop`, `IconCheck`, and `IconUpdate` — a straight shaft, a chevron head and a ground line, deliberately *not* the circular arrow every library uses for "reload", because a single curve would give itself away among nothing but creases.
+The grammar is straight edges and pattern-consistent angles: `IconSheet` is four cells of the pattern (the deploy toggle), `IconArrow` is direction, `IconChevron` rotates 180° when the sheet deploys, plus `IconAlert`, `IconFolder`, `IconStop`, `IconCheck`, and `IconUpdate` — a straight shaft, a chevron head and a ground line, deliberately *not* the circular arrow every library uses for "reload", because a single curve would give itself away among nothing but creases.
 
 The player adds eight, and holds the same line where the category's conventions are curved or solid: `IconPlay` and `IconPause` are **outlined**, not filled, because a solid triangle would be the only opaque mass in the interface that is not foil; `IconStepBack` / `IconStepNext` are that triangle against a stop bar; `IconCamera` is a box with a straight-cut viewfinder hump and a **diamond** aperture, since a round one is impossible here; `IconPlus` / `IconMinus` are bare strokes rather than a magnifier, because the magnifier is a circle with a handle and there is no circle to draw; `IconSound` and `IconMute` share one straight-edged cone with chevron waves or a cross.
 
@@ -726,11 +740,11 @@ Recorded as found in the built code, not smoothed over.
 
 4. **Two tokens are declared and never used:** `--s1: 4px` (the whole interface lives on s2–s7) and `--lift-sm`. Sub-4px values that *are* used appear as literals instead: `2px` (`.crease-hint` margin), `3px` (`.spec-k` margin, `.pair-field` gap, `.switch` padding), `6px` (`.legend span` gap).
 
-5. **Several palette values are literal hexes, not tokens.** `#f1efe9` (segmented hover), `#ddd9d0` (switch hover), `#e0bdb1` (alert hairline), `#6b2416` (alert text), `#8a6c18` (packet illustration), the five foil gradient stops, and the density/drop chip pairs `#24512c`/`#d6e8d4` and `#6b2f18`/`#f3ddd0` — the last pair duplicated verbatim between `.mass-drop-up` and `.density-apretado`. They are captured in this file's frontmatter so they are auditable, but `tokens.css` does not define them.
+5. **Several palette values are literal hexes, not tokens.** `#f1efe9` (segmented hover), `#ddd9d0` (switch hover), `#e0bdb1` (alert hairline), `#6b2416` (alert text), the five foil gradient stops, and the density/drop chip pairs `#24512c`/`#d6e8d4` and `#6b2f18`/`#f3ddd0` — the last pair duplicated verbatim between `.mass-drop-up` and `.density-apretado`. They are captured in this file's frontmatter so they are auditable, but `tokens.css` does not define them.
 
 6. **The update-error notice has no `role="alert"`.** It renders with the alert styling (`.notice`, alert icon) but, unlike the FFmpeg-missing, load-error, encode-error and unreachable-target notices, carries no ARIA role, so it is announced only when a reader reaches it.
 
-7. **Decorative icons are inconsistently hidden.** `IconPacket` in the wordmark and `IconArrow` in the mass bar get `aria-hidden="true"`; the same icons inside `.act` buttons, notices and the deploy toggle do not. They have no `<title>` so most readers ignore them, but the treatment should be uniform.
+7. **Decorative icons are inconsistently hidden.** `IconArrow` in the mass bar gets `aria-hidden="true"`; the same icon inside `.act` buttons, notices and the deploy toggle does not. (The two logo images are exempt: an `<img>` with `alt=""` is already ignored.) They have no `<title>` so most readers ignore them, but the treatment should be uniform.
 
 8. **`.section-head-deployed` exists only to add a 12px top margin**, and there is an orphaned section comment (`/* --- Ventana estrecha --- */`) at line ~893 with no rules under it — the narrow-window media query it labels actually lives at the bottom of the file, past the focus block.
 

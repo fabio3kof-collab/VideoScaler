@@ -6,7 +6,8 @@ import { Packet } from './Packet'
 import { Player } from './Player'
 import { Scaler } from './Scaler'
 import { Update } from './Update'
-import { IconFolder, IconPacket } from './Icons'
+import { IconFolder } from './Icons'
+import logo from './assets/logo.png'
 import './styles/app.css'
 
 const VIDEO_EXTENSIONS = new Set([
@@ -153,7 +154,7 @@ export default function App(): JSX.Element {
     >
       <header className="bar">
         <span className="wordmark">
-          <IconPacket aria-hidden="true" />
+          <img className="wordmark-mark" src={logo} alt="" width={22} height={22} />
           VideoScaler
         </span>
 
