@@ -834,6 +834,14 @@ export function Player({
         case 'm':
           setMuted((m) => !m)
           break
+        // Capturar, en la inicial de lo que hace. Es la única tecla del módulo
+        // que escribe en el disco, y la que más falta hacía: mirar de cerca y
+        // guardar lo que se está mirando son el mismo gesto, y obligar a soltar
+        // el teclado para ir a buscar el botón lo parte en dos. La repetición
+        // del sistema se ignora — una tecla hundida no son treinta capturas.
+        case 'c':
+          if (!e.repeat && src && !unplayable) void onCapture()
+          break
         default:
           return
       }
@@ -862,7 +870,21 @@ export function Player({
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('blur', onBlur)
     }
-  }, [active, togglePlay, press, release, pressJump, releaseJump, seekBy, zoomTo, zoom, fit])
+  }, [
+    active,
+    togglePlay,
+    press,
+    release,
+    pressJump,
+    releaseJump,
+    seekBy,
+    zoomTo,
+    zoom,
+    fit,
+    onCapture,
+    src,
+    unplayable
+  ])
 
   // Salir del módulo con un salto a medio apuntar lo cobra: es la misma regla
   // que al perder la ventana, y deja el contador en cero para la próxima vez.
@@ -1319,15 +1341,20 @@ export function Player({
             className="act act-commit"
             disabled={!src || unplayable}
             onClick={() => void onCapture()}
+            aria-keyshortcuts="c"
             title={
               !media.x
                 ? undefined
                 : cropped
-                  ? `Guarda sólo lo que se ve del cuadro ${frame}, a ${shot.x} × ${shot.y} px`
-                  : `Guarda el cuadro ${frame} entero, a ${shot.x} × ${shot.y} px`
+                  ? `Guarda sólo lo que se ve del cuadro ${frame}, a ${shot.x} × ${shot.y} px (C)`
+                  : `Guarda el cuadro ${frame} entero, a ${shot.x} × ${shot.y} px (C)`
             }
           >
             {cropped ? 'Capturar lo visible' : 'Capturar fotograma'}
+            {/* La misma regla que en las teclas de paso: el atajo se escribe en
+                el botón que lo ejecuta, porque es la única forma de que alguien
+                lo descubra sin buscarlo en ninguna ayuda. */}
+            <kbd>C</kbd>
             <IconCamera aria-hidden="true" />
           </button>
         </div>

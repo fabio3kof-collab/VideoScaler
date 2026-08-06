@@ -118,6 +118,9 @@ export function Scaler({
   const [result, setResult] = useState<JobResult | null>(null)
   const [deployed, setDeployed] = useState(false)
   const jobRef = useRef<string | null>(null)
+  /** La única tecla viva mientras se comprime: se le da el foco y no se le
+      deja escapar. */
+  const stopRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const off = window.videoscaler.onProgress(setProgress)
@@ -140,8 +143,6 @@ export function Scaler({
     }))
   }, [probe.path, probe.sizeBytes])
 
-  const running = progress !== null && result === null
-
   const onEncode = useCallback(async () => {
     onError(null)
     setResult(null)
@@ -162,6 +163,41 @@ export function Scaler({
   const onCancel = useCallback(() => {
     if (jobRef.current) void window.videoscaler.cancelEncode(jobRef.current)
   }, [])
+
+  /*
+   * Mientras se comprime, la ventana entera queda detrás de un velo.
+   *
+   * No es una barra de progreso que informa: es un bloqueo, y lo es porque el
+   * trabajo lo es. Un solo trabajo a la vez, un solo archivo, y las palancas
+   * escritas en el proceso que ya arrancó — moverlas mientras corre no cambia
+   * nada del resultado y hace creer que sí. Cambiar de archivo, peor: la ficha
+   * de arriba pasaría a describir un video que no es el que se está
+   * escribiendo en el disco.
+   *
+   * El velo tapa el puntero por sí solo. Lo que no tapa es el teclado, así que
+   * el foco se lleva a Detener y el tabulador se queda dando vueltas ahí: sin
+   * esto, tres pulsaciones de tabulador llegan a los mandos que el velo está
+   * escondiendo, y se accionan a ciegas.
+   */
+  const running = progress !== null && result === null
+
+  useEffect(() => {
+    if (!running) return
+    const before = document.activeElement as HTMLElement | null
+    stopRef.current?.focus()
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Tab') return
+      e.preventDefault()
+      stopRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      // Al terminar, el foco vuelve de donde salió — casi siempre Comprimir,
+      // que es justo donde hay que estar para mirar el resultado de al lado.
+      before?.focus?.()
+    }
+  }, [running])
 
   const setVideo = useCallback(
     (patch: Partial<EncodeOptions['video']>): void =>
@@ -743,36 +779,6 @@ export function Scaler({
             )}
           </section>
 
-          {running && progress && (
-            <section className="run">
-              <button type="button" className="act act-quiet" onClick={onCancel}>
-                <IconStop aria-hidden="true" />
-                Detener
-              </button>
-              <div style={{ flex: 1 }}>
-                <div
-                  className="progress-track"
-                  role="progressbar"
-                  aria-label="Progreso de la compresión"
-                  aria-valuenow={Math.round(progress.percent)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <div
-                    className="progress-fill"
-                    style={{ transform: `scaleX(${progress.percent / 100})` }}
-                  />
-                </div>
-              </div>
-              <div className="run-stats">
-                <span>{progress.percent.toFixed(0)}%</span>
-                {progress.speed !== null && <span>{progress.speed.toFixed(1)}×</span>}
-                {progress.etaSec !== null && <span>faltan {formatDuration(progress.etaSec)}</span>}
-                <span>{formatBytes(progress.outSizeBytes)}</span>
-              </div>
-            </section>
-          )}
-
           {result?.status === 'done' && (
             <section className="result">
               <div className="result-figure">
@@ -865,6 +871,100 @@ export function Scaler({
           <IconArrow aria-hidden="true" />
         </button>
       </footer>
+
+      {/*
+        El trabajo en curso, delante de todo y no en un renglón del cuerpo.
+
+        Antes vivía dentro de la hoja, entre las palancas, y desde ahí pedía dos
+        cosas incompatibles a la vez: mira este número, y no toques nada de lo
+        que tienes alrededor. Ahora es una hoja apoyada sobre la ventana, con lo
+        único que se puede hacer mientras tanto — detener — y nada más al
+        alcance.
+
+        Va fuera del cuerpo desplazable a propósito: dentro se iba con el
+        desplazamiento, y el porcentaje del trabajo que uno está esperando no
+        es algo que deba buscarse.
+      */}
+      {running && progress && (
+        <div
+          className="working"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="working-title"
+          /* Un archivo soltado sobre el velo llegaría a la ventana por
+             burbujeo, y la ficha de arriba pasaría a describir otro video
+             mientras este se escribe. Aquí el arrastre muere. */
+          onDragEnter={(e) => e.stopPropagation()}
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onDragLeave={(e) => e.stopPropagation()}
+          onDrop={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+        >
+          <div className="working-sheet">
+            <h2 className="working-title" id="working-title">
+              Comprimiendo
+            </h2>
+            <p className="working-name" title={probe.path}>
+              {probe.filename}
+            </p>
+
+            <div className="working-figure">
+              {/* El porcentaje manda: es lo único que contesta «¿cuánto falta?»
+                  desde el otro lado de la habitación. */}
+              <span className="working-pct" aria-hidden="true">
+                {progress.percent.toFixed(0)}
+                <i>%</i>
+              </span>
+              <span className="working-side">
+                <span className="mass-k">Escrito</span>
+                <span className="mass-v">{formatBytes(progress.outSizeBytes)}</span>
+              </span>
+            </div>
+
+            <div
+              className="progress-track"
+              role="progressbar"
+              aria-label="Progreso de la compresión"
+              aria-valuenow={Math.round(progress.percent)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuetext={`${Math.round(progress.percent)} %`}
+            >
+              <div
+                className="progress-fill"
+                style={{ transform: `scaleX(${progress.percent / 100})` }}
+              />
+            </div>
+
+            <div className="working-stats">
+              {/* Hasta que FFmpeg no lleva unos segundos de trabajo no hay ni
+                  velocidad ni tiempo restante que decir. Se dice eso, en vez
+                  de dejar el hueco vacío y que parezca que se colgó. */}
+              {progress.speed !== null ? (
+                <span>{progress.speed.toFixed(1)}× de tiempo real</span>
+              ) : (
+                <span>arrancando</span>
+              )}
+              {progress.etaSec !== null && <span>faltan {formatDuration(progress.etaSec)}</span>}
+            </div>
+
+            <div className="working-acts">
+              <button ref={stopRef} type="button" className="act act-quiet" onClick={onCancel}>
+                <IconStop aria-hidden="true" />
+                Detener
+              </button>
+              <p className="working-note">
+                La ventana queda en pausa hasta que termine. Detener no toca el original.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

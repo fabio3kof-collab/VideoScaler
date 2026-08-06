@@ -306,6 +306,7 @@ These are two families, not two colours, and each has a hairline weight and a se
 
 - **Stage** (`#23211e`): the background of the player's viewing area (`.stage`), and the only dark surface in the system. It is a *material*, not a theme: the sheet is where you decide, the table is where you look. A light surround raises a frame's apparent black level and hides exactly the compression blocking the player exists to reveal, which is why every serious image viewer is dark. It stops at the edge of the viewing area; the header and the transport bar on either side of it are still paper.
 - **Stage Line** (`rgba(255,255,255,0.028)`): the same 64px fold lattice as the sheet, drawn in light instead of shadow — the same paper seen from the other side.
+- **Veil** (`--veil`: `rgba(20,18,12,0.44)`): the window dimmed while a file is being written. It is deliberately **not** `--stage` and does not break the One Dark Surface Rule: it is the warm-dark tint of the shadow tokens taken to the size of the frame — a shadow, not a material — and it is transient, existing only for the length of a job. A card resting on it takes `--lift-stage`, for the same reason a card on the table does: `--lift` at 6% alpha is invisible against anything this dark.
 - **Lift Stage** (`0 2px 6px rgba(0,0,0,0.5), 0 16px 44px rgba(0,0,0,0.45)`): the frame's shadow on the table, and the shadow of any paper card resting on it. `--lift` is warm and 6% alpha, which is invisible against `#23211e`; this is its dark-surface counterpart, not a replacement.
 - Text is never set directly on the table. Anything readable — an error, the unplayable-format explanation — sits on a raised sheet card (`.stage-say`) over it.
 
@@ -313,7 +314,7 @@ These are two families, not two colours, and each has a hairline weight and a se
 
 **The One Dark Surface Rule.** `--stage` is licensed for the video viewing area and nothing else. It is not a dark mode, not a "hero" background, and not available to any panel that holds text. If a second dark region appears, the table stops reading as a different material and becomes a theme.
 
-**The Single Foil Rule.** Gold appears once per screen, on the one action that commits work. The build enforces this by handoff, not by discipline: while a job runs, the commit button is `disabled` (and drops to `--mountain-fill`), and the foil moves to the progress fill. When you add a surface, ask which element *commits*; everything else is ink, paper or fold.
+**The Single Foil Rule.** Gold appears once per screen, on the one action that commits work. The build enforces this by handoff, not by discipline: while a job runs, the commit button is `disabled` (and drops to `--mountain-fill`) *and* covered by the veil, and the foil moves to the progress fill — which is then the only gold on screen, inside the only card that accepts input. When you add a surface, ask which element *commits*; everything else is ink, paper or fold.
 
 **The Two-Fold Rule.** Mountain marks controls that remove weight. Valley marks controls that preserve quality. Rows that change neither carry no mark at all — they render an empty `aria-hidden` span to hold the grid column. Assigning this wrong is a real defect, not a nuance: it was caught in review. The current, correct assignment is enumerated in Components below.
 
@@ -382,7 +383,7 @@ Depth here is paper physics, not Material elevation. There is one shared shadow 
 
 ### Shadow Vocabulary
 
-- **Lift** (`--lift`: `0 2px 4px rgba(20,18,12,0.06), 0 8px 22px rgba(20,18,12,0.08)`): the only lifted-panel shadow. Four uses: the identity card, the crease stack, the run panel, the result panel. Two stops — a tight contact shadow and a wide ambient one — with a warm-dark tint rather than neutral black.
+- **Lift** (`--lift`: `0 2px 4px rgba(20,18,12,0.06), 0 8px 22px rgba(20,18,12,0.08)`): the only lifted-panel shadow. Three uses: the identity card, the crease stack, the result panel. The working card is the exception and takes `--lift-stage`, because it rests on the veil. Two stops — a tight contact shadow and a wide ambient one — with a warm-dark tint rather than neutral black.
 - **Mass bar shadow** (`0 -3px 14px rgba(20,18,12,0.05)`): cast upward, because the bar sits below the content it shadows.
 - **Foil drop-shadow** (`filter: drop-shadow(0 1px 2px rgba(20,18,12,0.14)) drop-shadow(0 4px 10px rgba(20,18,12,0.12))`): the commit button. It must be a `filter`, not a `box-shadow` — `clip-path` clips `box-shadow` away, and `filter` is applied after the clip so it traces the parallelogram. On `:active` the filter is removed entirely, which reads as the button pressing into the sheet.
 - **Inset hairline** (`box-shadow: inset 0 0 0 var(--crease) <fold colour>`): the substitute border for clipped and grouped shapes — the quiet button, the switch track, the segmented group, the notices. Inset shadows paint *inside* the clip and survive it.
@@ -446,7 +447,9 @@ Two variants, one shape. Both are inline-flex with an 8px gap to their icon, `11
 - **Commit** (`.act-commit`) — the foil one. Default: 103° gold gradient, `--foil-ink` text, two-stop drop-shadow filter. **Hover:** brighter gradient (`#f2d670 / #e2bd47 / #c09a2e`). **Active:** darker gradient (`#c8a63a / #b89428 / #96781f`) with the filter removed. **Disabled:** `--mountain-fill` background with `--ink-2` text (7.2:1) and `cursor: not-allowed` — deliberately *not* faded, because the disabled path is reached when FFmpeg is missing and the label still has to be readable. **Focus:** `inset 0 0 0 2px var(--ink)`.
 - **Quiet** (`.act-quiet`) — raised sheet, `--ink` text, 1px inset mountain hairline. **Hover:** `--sheet-sunk`. **Active:** `--mountain-fill`. **Focus:** same inset ink ring. A `:disabled` rule exists (`--ink-3`, not-allowed) but **no quiet button in `App.tsx` is ever rendered disabled** — treat that rule as provisioned, not proven.
 
-Usage in the built app: commit appears exactly once per screen — "Elegir archivo" in the empty state, "Comprimir"/"Comprimiendo" in the mass bar. Quiet appears on "Otro archivo" (header), "Detener" (run panel) and "Ver en la carpeta" (result panel).
+Usage in the built app: commit appears exactly once per screen — "Elegir archivo" in the empty state, "Comprimir"/"Comprimiendo" in the mass bar. Quiet appears on "Otro archivo" (header), "Detener" (working card) and "Ver en la carpeta" (result panel).
+
+**`kbd` inside an action.** `.act kbd` prints a shortcut on a full-size action the same way `.tkey kbd` does on a transport key — mono, 9px, width 82% — but it inherits the button's own ink at `opacity: 0.8` instead of taking `--ink-3`: on foil, the grey misses 4.5:1, and a second colour on the screen's only gold would muddy it. Below 0.8 the 9px text falls under 4.5:1 as well.
 
 ### Segmented — `.seg` (the primary control)
 
@@ -580,7 +583,20 @@ One quiet button beside the wordmark, carrying all five update states in its own
 
 ### Progress — `.progress-track` / `.progress-fill`
 
-A 5px `--mountain-fill` track with an overflow-hidden foil gradient fill. The fill is always `width: 100%` and is driven by `transform: scaleX()` with `transform-origin: left center`, transitioning `320ms linear` — animating `width` would force layout on every frame of a job that runs for minutes. `role="progressbar"` with `aria-label`, `aria-valuenow` (rounded), `aria-valuemin=0`, `aria-valuemax=100`.
+A 5px `--mountain-fill` track with an overflow-hidden foil gradient fill. The fill is always `width: 100%` and is driven by `transform: scaleX()` with `transform-origin: left center`, transitioning `320ms linear` — animating `width` would force layout on every frame of a job that runs for minutes. `role="progressbar"` with `aria-label`, `aria-valuenow` (rounded), `aria-valuetext`, `aria-valuemin=0`, `aria-valuemax=100`.
+
+### Working veil — `.working` / `.working-sheet` (signature component)
+
+The job in progress: a fixed `--veil` scrim over the whole window (`z-index: 40`, `backdrop-filter: blur(2px)`) with one raised paper card centred on it (`min(440px, 100%)`, 28px padding, `--lift-stage`).
+
+**It is a block, not a bulletin.** This used to be a `.run` row inside the sheet, between the levers, and from there it asked for two incompatible things at once: watch this number, and do not touch anything around it. Moving a lever mid-job changes nothing about the file being written and makes the user believe it did; loading a different file is worse, since the identity card would then describe a video other than the one going to disk. The veil says all of that in the only vocabulary that cannot be misread — nothing else is reachable.
+
+Reads: **Comprimiendo** (Headline), the file name (mono 11px, ellipsis, full path in `title` — the veil covers the identity card, and a progress bar with no name could belong to anything), the percentage at the 34px display step in mono with a `--ink-3` `%` sign, the written-so-far weight as a micro-label/mono pair, the progress bar, then speed and remaining time in *Measurement small*, then **Detener** with one 11px line beside it: stopping does not touch the original. Before FFmpeg reports a speed the stats line says `arrancando` rather than leaving a gap that reads as a hang.
+
+- **The 34px figure is the empty state's display step, spent on a number instead of a sentence.** These are the only two moments the window shows one thing at a time, so they share a scale. Mono, because it is a measurement.
+- **It lives outside `.scroll`.** Inside, the thing the user is waiting on scrolled away with the levers.
+- **Pointer, keyboard and drag are each closed separately.** The scrim takes the pointer. The keyboard is trapped by moving focus to **Detener** on mount and swallowing `Tab` on a capturing window listener — without it, three tabs reach the controls the veil is hiding and operate them blind; focus returns to whatever held it (normally the commit button) when the job ends. Drag events are stopped on the scrim, because they would otherwise bubble to the window's own drop handler and swap the file mid-job. Scrolling needs no handler: the scrim is not scrollable and `body` is `overflow: hidden`, so there is no chain to scroll.
+- **Motion:** a 180ms `veil` fade under the card's 240ms `unfold` — the same drop-and-uncover keyframe the deployed crease rows use. Both resolve instantly under `prefers-reduced-motion`; what matters about this card is not how it arrives.
 
 ### Empty state — `.packet`
 
@@ -650,6 +666,7 @@ The player's fixed foot bar, built like the mass bar (raised sheet, 1px top fold
 - **Capture** is `.act-commit` — the foil. It is the only thing this module writes to disk, and the Single Foil Rule holds across the app because the two modules are never on screen together.
 - **Capture saves what is on the table.** The visible rectangle is derived from the same pan and zoom that transform the frame, so it is not an estimate of what is on screen — it *is* what is on screen. Zoomed in, the file is that crop; fitted, it is the whole frame. The visible enhancement is composited in, because turning it off at write time would hand back a different image than the one that made the user press the button (the toggle turns it off on the table, and then it does not go in either).
 - **At least 1920 on the long side**, in whatever proportion the crop has. At file resolution a crop taken at 300% is four hundred pixels wide — the detail the user went in to examine, delivered as a postage stamp. It is a **floor, not a fixed size**: a whole frame of a 4K file is written at its own 3840, because shrinking real pixels to satisfy a number throws away what was already there. When the enhancement is on there is genuinely more to copy than the crop holds, since that layer is already computed at screen resolution.
+- **`C` captures.** The initial of what it does, printed on the button as a `kbd` like `J` and `K` are on theirs, with `aria-keyshortcuts="c"` and the shortcut repeated in the `title` beside the exact output size. Looking closely and keeping what you are looking at are one gesture; making the user leave the keyboard to find the button splits it in two — and this is the module's only key that writes to disk, which is exactly why it was the one still missing. Auto-repeat is ignored: a held key is not thirty captures. It is refused while there is no playable source, the same condition that disables the button.
 - **The button says which of the two it will do.** `Capturar fotograma` when the whole frame is visible, `Capturar lo visible` when it is not, with the exact output size in the `title`. Promising "frame" and writing a crop would be lying on the one button in the module that touches the disk. The name follows: `-cuadro-N-recorte.png`, because a crop and the full frame of the same frame number are not the same file and whoever goes looking later needs to tell them apart.
 
 ### Icons — `Icons.tsx`
@@ -693,6 +710,7 @@ One easing token: `--ease: cubic-bezier(0.16, 1, 0.3, 1)` — a fast-out, long-s
 ### Accessibility patterns already established
 
 - Radiogroup with roving tabindex and arrow-key wrap, focus following selection (`Segmented`).
+- `role="dialog" aria-modal="true"` with `aria-labelledby` on the working veil, focus moved to its only action on mount, `Tab` swallowed by a capturing listener while it is up, and focus restored to the previously active element when it comes down.
 - `role="switch"` + `aria-checked` + `aria-label` (`Switch`).
 - `role="progressbar"` with label and value bounds.
 - `aria-live="polite" aria-atomic="true"` on both mass-bar readout groups, and on the probing paragraph.
@@ -716,7 +734,8 @@ One easing token: `--ease: cubic-bezier(0.16, 1, 0.3, 1)` — a fast-out, long-s
 - **Do** check any new informational mark against `#fdfdfc` for ≥3:1, and give it a shape difference as well as a colour difference.
 - **Do** let a new module own rows two and three of the window grid through a `display: contents` wrapper, and keep it mounted-but-hidden so its state survives a tab switch.
 - **Do** put text on a raised sheet card when it has to be read over the table. `--stage` is a surface for images, not for copy.
-- **Do** print a keyboard shortcut on the control that performs it (`kbd` inside `.tkey`) and back it with `aria-keyshortcuts`. A shortcut nobody can discover is a shortcut nobody uses.
+- **Do** print a keyboard shortcut on the control that performs it (`kbd` inside `.tkey` or `.act`) and back it with `aria-keyshortcuts`. A shortcut nobody can discover is a shortcut nobody uses.
+- **Do** close pointer, keyboard *and* drag when a state is meant to block the window. A scrim only stops the mouse; the tab order and the window's drop handler walk straight past it.
 
 ### Don't:
 - **Don't** put gold foil on anything but the single commit action. Two foil elements competing on one screen breaks the only signal the palette has.

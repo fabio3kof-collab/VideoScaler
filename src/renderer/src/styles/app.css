@@ -865,24 +865,129 @@ input[type='range']:disabled::-webkit-slider-thumb {
   transition: transform 320ms linear;
 }
 
-.run {
-  display: flex;
-  align-items: center;
-  gap: var(--s4);
-  padding: var(--s4) var(--s5);
-  background: var(--sheet-raised);
-  box-shadow: var(--lift);
+/*
+ * El trabajo en curso: el velo y la hoja.
+ *
+ * Un bloqueo, no un aviso. Mientras FFmpeg escribe, la ventana no admite otra
+ * orden que detener, y la forma tiene que decirlo antes de que nadie lo
+ * intente: el velo apaga la hoja de palancas y se queda con el puntero, y la
+ * tarjeta se lleva el foco del teclado. El desplazamiento muere aquí porque el
+ * velo no desplaza y debajo no hay nada que encadene — la ventana entera está
+ * en `overflow: hidden`.
+ */
+.working {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--s5);
+  background: var(--veil);
+  backdrop-filter: blur(2px);
+  overscroll-behavior: contain;
+  animation: veil 180ms var(--ease) both;
 }
 
-.run-stats {
+.working-sheet {
   display: flex;
-  gap: var(--s5);
+  flex-direction: column;
+  gap: var(--s3);
+  width: min(440px, 100%);
+  padding: var(--s5);
+  background: var(--sheet-raised);
+  box-shadow: var(--lift-stage);
+  animation: unfold 240ms var(--ease) both;
+}
+
+.working-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  font-stretch: 108%;
+  letter-spacing: -0.012em;
+}
+
+/* Qué archivo, dicho aquí también: el velo tapa la ficha de identidad, y una
+   barra de progreso sin nombre podría ser la de cualquier otra cosa. */
+.working-name {
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--spec);
+  font-size: 11px;
+  font-stretch: 82%;
+  color: var(--ink-2);
+}
+
+.working-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s4);
+  margin-top: var(--s2);
+}
+
+/* El escalón de la portada, en la cifra en vez de en la frase: son los dos
+   únicos momentos en que la ventana enseña una sola cosa. */
+.working-pct {
+  font-family: var(--spec);
+  font-size: 34px;
+  font-weight: 600;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* El signo no compite con la cifra: es la unidad, no el dato. */
+.working-pct i {
+  margin-left: 2px;
+  font-size: 17px;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.working-side {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
   margin-left: auto;
+}
+
+.working-stats {
+  display: flex;
+  gap: var(--s4);
   font-family: var(--spec);
   font-size: 11px;
   font-stretch: 82%;
   font-variant-numeric: tabular-nums;
   color: var(--ink-2);
+}
+
+/* La única acción viva de la ventana, y a su lado la única letra que hace
+   falta: qué pasa con el original si se pulsa. */
+.working-acts {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s2);
+}
+
+.working-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+@keyframes veil {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* --- Resultado y aviso --------------------------------------------------- */
@@ -1498,6 +1603,18 @@ input[type='range']:disabled::-webkit-slider-thumb {
   color: var(--ink-3);
 }
 
+/* El atajo escrito en una acción grande. Sobre oro, la tinta es la del propio
+   foil rebajada: el gris de `.tkey kbd` no pasa el contraste ahí, y un segundo
+   color sobre el único dorado de la pantalla lo ensuciaría. */
+.act kbd {
+  font-family: var(--spec);
+  font-size: 9px;
+  font-stretch: 82%;
+  letter-spacing: 0.04em;
+  /* 0,8 y no menos: por debajo, los 9px sobre el dorado caen del 4,5:1. */
+  opacity: 0.8;
+}
+
 /* Acción pequeña: mismo bisel y misma letra que `.act`, a la escala de una
    barra de herramientas. */
 .act-mini {
@@ -1789,5 +1906,13 @@ input[type='range']:disabled::-webkit-slider-thumb {
   .deployed .crease {
     animation-duration: 1ms !important;
     animation-delay: 0ms !important;
+  }
+
+  /* El velo y su hoja aparecen sin desplegarse. La entrada se resuelve al
+     instante: lo que importa de esta tarjeta no es cómo llega, es que a partir
+     de ella la ventana no acepta otra orden. */
+  .working,
+  .working-sheet {
+    animation-duration: 1ms !important;
   }
 }
