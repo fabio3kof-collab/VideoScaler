@@ -9,6 +9,7 @@ import type {
   MediaProbe,
   UpdateState
 } from '@shared/types'
+import type { RenderRequest } from '@shared/edit'
 import { IPC } from '@shared/ipc'
 
 /**
@@ -18,6 +19,9 @@ import { IPC } from '@shared/ipc'
 const api = {
   pickFiles: (): Promise<string[]> => ipcRenderer.invoke(IPC.pickFiles),
 
+  /** El picker del montaje: acepta también archivos de sólo audio. */
+  pickMedia: (): Promise<string[]> => ipcRenderer.invoke(IPC.pickMedia),
+
   /** Ruta real de un File soltado en la ventana (no existe `File.path` en Electron ≥32). */
   pathForFile: (file: File): string => webUtils.getPathForFile(file),
 
@@ -26,8 +30,15 @@ const api = {
   suggestOutputPath: (inputPath: string, container: Container): Promise<string> =>
     ipcRenderer.invoke(IPC.suggestOutputPath, inputPath, container),
 
+  suggestProjectPath: (seedPath: string, container: Container): Promise<string> =>
+    ipcRenderer.invoke(IPC.suggestProjectPath, seedPath, container),
+
   startEncode: (req: EncodeRequest): Promise<JobResult> =>
     ipcRenderer.invoke(IPC.startEncode, req),
+
+  /** Exporta la línea de tiempo. Progreso y cancelación son los de comprimir. */
+  startRender: (req: RenderRequest): Promise<JobResult> =>
+    ipcRenderer.invoke(IPC.startRender, req),
 
   cancelEncode: (jobId: string): Promise<boolean> => ipcRenderer.invoke(IPC.cancelEncode, jobId),
 

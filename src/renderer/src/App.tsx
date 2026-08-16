@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import type { FfmpegStatus, MediaProbe, UpdateState } from '@shared/types'
 import { explain, type FriendlyError } from './errors'
+import { Editor } from './Editor'
 import { Packet } from './Packet'
 import { Player } from './Player'
 import { Scaler } from './Scaler'
@@ -14,7 +15,7 @@ const VIDEO_EXTENSIONS = new Set([
   'mp4', 'mkv', 'mov', 'avi', 'webm', 'wmv', 'flv', 'm4v', 'mpg', 'mpeg', 'ts', 'm2ts', '3gp', 'ogv'
 ])
 
-type Module = 'scaler' | 'player'
+type Module = 'scaler' | 'player' | 'editor'
 
 /*
  * Reproducir primero, y no por orden alfabético.
@@ -22,11 +23,12 @@ type Module = 'scaler' | 'player'
  * Un archivo recién soltado todavía no es una decisión: antes de elegir cuánto
  * peso quitarle hay que ver qué es y cómo se ve. Abrir en las palancas obligaba
  * a fijar un objetivo a ciegas y sólo después ir a mirar. Abriendo en la mesa,
- * el recorrido es el que ya se hacía a mano — mirar, decidir, comprimir — y las
+ * el recorrido es el que ya se hacía a mano — mirar, montar, comprimir — y las
  * pestañas van en ese mismo orden.
  */
 const MODULES: ReadonlyArray<{ id: Module; label: string }> = [
   { id: 'player', label: 'Reproducir' },
+  { id: 'editor', label: 'Editar' },
   { id: 'scaler', label: 'Reducir' }
 ]
 
@@ -51,6 +53,12 @@ export default function App(): JSX.Element {
   const [error, setError] = useState<FriendlyError | null>(null)
   const [module, setModule] = useState<Module>('player')
   const [dragging, setDragging] = useState(false)
+  /**
+   * Un archivo soltado con el montaje delante no cambia el archivo de la
+   * ventana: se le pasa al editor para que lo añada. Aquí sólo se apunta la
+   * ruta; el módulo la recoge y avisa cuando ya la ha usado.
+   */
+  const [handoff, setHandoff] = useState<string | null>(null)
   const dragDepth = useRef(0)
   const tabsRef = useRef<HTMLDivElement>(null)
 
@@ -129,9 +137,16 @@ export default function App(): JSX.Element {
       dragDepth.current = 0
       setDragging(false)
       const file = e.dataTransfer.files[0]
-      if (file) await loadFile(window.videoscaler.pathForFile(file))
+      if (!file) return
+      const path = window.videoscaler.pathForFile(file)
+      // El mismo gesto quiere decir dos cosas según dónde se esté: en la mesa y
+      // en las palancas, «trabaja con este otro archivo»; en el montaje, «suma
+      // este archivo al que ya estoy armando». Nadie arrastra un segundo video
+      // a un editor para tirar el primero.
+      if (probe && module === 'editor') setHandoff(path)
+      else await loadFile(path)
     },
-    [loadFile]
+    [loadFile, module, probe]
   )
 
   // Flechas entre pestañas, con el foco siguiendo a la selección: es lo que
@@ -262,6 +277,23 @@ export default function App(): JSX.Element {
               active={module === 'player'}
               error={error}
               onError={setError}
+            />
+          </div>
+          <div
+            className={`module${module === 'editor' ? '' : ' is-away'}`}
+            role="tabpanel"
+            id="panel-editor"
+            aria-labelledby="tab-editor"
+          >
+            <Editor
+              probe={probe}
+              active={module === 'editor'}
+              env={env}
+              error={error}
+              onError={setError}
+              onWatch={(path) => void onWatch(path)}
+              pendingImport={handoff}
+              onImported={() => setHandoff(null)}
             />
           </div>
         </>

@@ -2,8 +2,12 @@
 export const IPC = {
   // invoke/handle
   pickFiles: 'media:pickFiles',
+  /** Como `pickFiles`, pero el montaje también admite archivos de sólo audio. */
+  pickMedia: 'media:pickMedia',
   probe: 'media:probe',
   suggestOutputPath: 'media:suggestOutputPath',
+  suggestProjectPath: 'media:suggestProjectPath',
+  startRender: 'edit:render',
   startEncode: 'encode:start',
   cancelEncode: 'encode:cancel',
   mediaUrl: 'media:url',

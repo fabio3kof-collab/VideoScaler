@@ -1,6 +1,6 @@
 {
   "name": "videoscaler",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "description": "Reduce el peso de tus videos con la menor pérdida de calidad posible.",
   "main": "./out/main/index.js",
   "author": "Karbec",

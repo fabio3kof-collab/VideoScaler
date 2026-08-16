@@ -51,6 +51,7 @@ Confirmed:
 - Compression is targeted at a space requirement (a size the output must fit).
 - Runs as a Windows desktop app; processing is local.
 - **Installable and easily updatable.** The app must install onto the user's computer and pick up every change with minimal friction. Packaging and the update path are day-one constraints, not release-time chores.
+- **Semi-professional editing, added 2026-08-15 at the user's request** ("un editor semiprofesional"): cut a video into sections and rearrange them freely, separate audio from picture, and bring in other videos and audio tracks. This widens the product past "reduce weight": the window now holds a project, not only a file. The compressor is still the centre — the editor exports to it by handing over a finished file — but the scope is now *work on the video*, and the naming issue below gets worse, not better.
 
 Assumed by Claude, pending confirmation (flagged so future work does not treat these as decided):
 

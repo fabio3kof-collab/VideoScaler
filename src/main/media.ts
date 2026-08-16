@@ -53,7 +53,18 @@ const MIME: Record<string, string> = {
   '.mpeg': 'video/mpeg',
   '.3gp': 'video/3gpp',
   '.wmv': 'video/x-ms-wmv',
-  '.flv': 'video/x-flv'
+  '.flv': 'video/x-flv',
+  // El montaje trae canciones y locuciones, no sólo video. Sin su tipo, el
+  // elemento de audio del editor recibe `application/octet-stream` y se niega
+  // a reproducir un archivo que sí sabe leer.
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.flac': 'audio/flac',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.wma': 'audio/x-ms-wma'
 }
 
 /** `bytes=1024-` o `bytes=1024-2047`. Cualquier otra forma se ignora. */

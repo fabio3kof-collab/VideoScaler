@@ -26,7 +26,14 @@ function parseProgressBlock(chunk: string): Record<string, string> {
   return out
 }
 
-function runPass(
+/**
+ * Una pasada de FFmpeg, con su progreso y su cancelación.
+ *
+ * Exportada porque el montaje corre por aquí también: es el mismo proceso, el
+ * mismo registro de trabajos y el mismo Detener. Dos runners paralelos serían
+ * dos formas de cancelar, y una de ellas se olvidaría de un proceso vivo.
+ */
+export function runPass(
   ffmpegPath: string,
   args: string[],
   jobId: string,

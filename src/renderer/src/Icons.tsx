@@ -173,3 +173,56 @@ export function IconMute(p: P): JSX.Element {
     </svg>
   )
 }
+
+/* Los del banco de trabajo. Misma gramática: sin curvas, sin glifos. */
+
+/** Cortar: la línea del corte y las dos mitades separándose. Unas tijeras a
+    16 px son dos rizos ilegibles; esto es lo que el gesto hace de verdad. */
+export function IconCut(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M8 1.6v12.8" />
+      <path d="M6.2 4.4H2.4v7.2h3.8M9.8 4.4h3.8v7.2H9.8" />
+    </svg>
+  )
+}
+
+/** Vínculo: dos eslabones rectos que comparten un tramo. */
+export function IconLink(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M6.4 4.2H3.2v3.2M3.2 7.4v-3.2h3.2" />
+      <path d="M9.6 11.8h3.2V8.6M12.8 8.6v3.2H9.6" />
+      <path d="M5.6 10.4 10.4 5.6" />
+    </svg>
+  )
+}
+
+export function IconPlus(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M8 2.8v10.4M2.8 8h10.4" />
+    </svg>
+  )
+}
+
+/** Quitar: la caja y la tapa, sin asa ni curvas. */
+export function IconTrash(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M2.6 4.2h10.8M6.2 4.2V2.6h3.6v1.6" />
+      <path d="M4 4.2 4.8 13.4h6.4L12 4.2" />
+    </svg>
+  )
+}
+
+/** Deshacer: la flecha que vuelve por donde vino, en ángulos rectos como todo
+    lo demás — un arco aquí sería la única curva del juego. */
+export function IconUndo(p: P): JSX.Element {
+  return (
+    <svg {...base} {...p}>
+      <path d="M2.8 6.6h9.4v6.6H6.6" />
+      <path d="M6 3.4 2.6 6.6 6 9.8" />
+    </svg>
+  )
+}

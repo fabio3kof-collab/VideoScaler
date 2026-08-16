@@ -14,27 +14,15 @@ import type {
   UpdateState,
   VideoCodec
 } from '@shared/types'
-import {
-  DEFAULT_OPTIONS,
-  QUALITY_RANGE,
-  formatBytes,
-  formatDuration,
-  formatKilobytes
-} from './defaults'
+import { DEFAULT_OPTIONS, QUALITY_RANGE, formatBytes, formatDuration } from './defaults'
 import { estimateWeight, scaledPixels } from './estimate'
 import { explain, type FriendlyError } from './errors'
 import { Crease, Segmented, Slider, Switch } from './Crease'
 import { ErrorNotice, Notice } from './Notice'
 import { Ration } from './Ration'
-import {
-  IconArrow,
-  IconCheck,
-  IconChevron,
-  IconFolder,
-  IconPlay,
-  IconSheet,
-  IconStop
-} from './Icons'
+import { Mass } from './Mass'
+import { Working } from './Working'
+import { IconArrow, IconCheck, IconChevron, IconFolder, IconPlay, IconSheet } from './Icons'
 
 const RATE_MODES = [
   { value: 'targetSize' as const, label: 'Peso objetivo' },
@@ -58,34 +46,6 @@ const PRESETS = [
   { value: 'slower' as const, label: 'Más lento' },
   { value: 'veryslow' as const, label: 'Máximo' }
 ]
-
-/**
- * Un peso dicho dos veces: megabytes arriba, kilobytes debajo y más chicos.
- *
- * Los MB son la cifra con la que se decide — es la unidad del límite de
- * WhatsApp, del correo, del pendrive — pero están redondeados a la décima, y
- * ahí adentro caben cien kilobytes de diferencia. Los KB no compiten con esa
- * lectura: van debajo, en gris, para quien necesita el número exacto.
- */
-function Mass({
-  bytes,
-  strong = false
-}: {
-  bytes: number | null
-  strong?: boolean
-}): JSX.Element {
-  const kb = formatKilobytes(bytes)
-  return (
-    <span className="mass-fig">
-      <span className={strong ? 'mass-v mass-v-strong' : 'mass-v'}>{formatBytes(bytes)}</span>
-      {kb && (
-        <span className="mass-sub" aria-hidden="true">
-          {kb}
-        </span>
-      )}
-    </span>
-  )
-}
 
 /**
  * Reducir: la hoja de palancas y la barra de masa.
@@ -118,11 +78,16 @@ export function Scaler({
   const [result, setResult] = useState<JobResult | null>(null)
   const [deployed, setDeployed] = useState(false)
   const jobRef = useRef<string | null>(null)
-  /** La hoja del trabajo: mientras esté delante, el foco vive dentro de ella. */
-  const sheetRef = useRef<HTMLDivElement>(null)
 
+  // Sólo el progreso del trabajo propio. El canal es uno para toda la ventana y
+  // el montaje también escribe archivos por él: sin este filtro, exportar desde
+  // el banco abriría *también* la hoja de este módulo — con un Detener que no
+  // detiene nada, porque el trabajo no es suyo — y la dejaría colgada sin
+  // resultado cuando el otro terminara.
   useEffect(() => {
-    const off = window.videoscaler.onProgress(setProgress)
+    const off = window.videoscaler.onProgress((p) => {
+      if (jobRef.current === p.jobId) setProgress(p)
+    })
     return off
   }, [])
 
@@ -173,64 +138,11 @@ export function Scaler({
    * de arriba pasaría a describir un video que no es el que se está
    * escribiendo en el disco.
    *
-   * El velo tapa el puntero por sí solo. Lo que no tapa es el teclado, así que
-   * el foco se lleva dentro de la hoja y el tabulador se queda dando vueltas
-   * ahí: sin esto, tres pulsaciones de tabulador llegan a los mandos que el velo
-   * está escondiendo, y se accionan a ciegas.
+   * El velo tapa el puntero por sí solo, y del teclado se encarga `Working`,
+   * que es la misma hoja que usa el montaje para exportar.
    */
   const running = progress !== null && result === null
-
-  /**
-   * La hoja no se va al terminar: cambia de contenido.
-   *
-   * Antes desaparecía en el mismo instante en que el trabajo acababa, y el
-   * resultado — con las dos únicas cosas que uno quiere hacer con él, mirarlo o
-   * ir a buscarlo — aparecía al pie del cuerpo desplazable, detrás de toda la
-   * hoja de palancas. Quien había estado mirando el porcentaje en el centro de
-   * la pantalla se quedaba mirando un sitio vacío. Ahora el desenlace se lee
-   * donde se estuvo esperando, y la ventana no vuelve hasta que se cierra.
-   */
-  const sheetOpen = progress !== null
   const close = useCallback(() => setProgress(null), [])
-
-  useEffect(() => {
-    if (!sheetOpen) return
-    const before = document.activeElement as HTMLElement | null
-    return () => {
-      // Al cerrarse, el foco vuelve de donde salió — casi siempre Comprimir. Se
-      // comprueba que siga a la vista: si la hoja se fue porque «Ver el
-      // resultado» cambió de archivo, ese botón está en el módulo que se acaba
-      // de ocultar, y devolverle el foco sería dejarlo en un sitio invisible.
-      if (before?.isConnected && before.offsetParent !== null) before.focus?.()
-    }
-  }, [sheetOpen])
-
-  // El corral del teclado se rehace al pasar de comprimiendo a terminado: son
-  // dos juegos de teclas distintos, y el primero de cada juego recibe el foco.
-  useEffect(() => {
-    if (!sheetOpen) return
-    const keys = (): HTMLElement[] =>
-      Array.from(sheetRef.current?.querySelectorAll<HTMLElement>('button') ?? [])
-    keys()[0]?.focus()
-    const onKey = (e: KeyboardEvent): void => {
-      // Escape sólo cierra lo que ya terminó. Mientras se escribe el archivo,
-      // detener es una decisión, y no una que se tome con la tecla de descartar.
-      if (e.key === 'Escape' && !running) {
-        e.preventDefault()
-        close()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const items = keys()
-      if (!items.length) return
-      e.preventDefault()
-      const at = items.indexOf(document.activeElement as HTMLElement)
-      const next = at < 0 ? 0 : (at + (e.shiftKey ? -1 : 1) + items.length) % items.length
-      items[next]?.focus()
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [sheetOpen, running, close])
 
   const setVideo = useCallback(
     (patch: Partial<EncodeOptions['video']>): void =>
@@ -913,194 +825,24 @@ export function Scaler({
         </button>
       </footer>
 
-      {/*
-        El trabajo, delante de todo y no en un renglón del cuerpo. Desde que
-        arranca hasta que se cierra.
-
-        Antes vivía dentro de la hoja, entre las palancas, y desde ahí pedía dos
-        cosas incompatibles a la vez: mira este número, y no toques nada de lo
-        que tienes alrededor. Ahora es una hoja apoyada sobre la ventana, con lo
-        único que se puede hacer mientras tanto — detener — y nada más al
-        alcance. Al terminar no se va: cambia de cara y entrega el resultado en
-        el mismo sitio donde se estuvo mirando el porcentaje.
-
-        Va fuera del cuerpo desplazable a propósito: dentro se iba con el
-        desplazamiento, y ni el porcentaje del trabajo que uno está esperando ni
-        el desenlace son algo que deba buscarse.
-      */}
-      {sheetOpen && (
-        <div
-          className="working"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="working-title"
-          /* Un archivo soltado sobre el velo llegaría a la ventana por
-             burbujeo, y la ficha de arriba pasaría a describir otro video
-             mientras este se escribe. Aquí el arrastre muere. */
-          onDragEnter={(e) => e.stopPropagation()}
-          onDragOver={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          onDragLeave={(e) => e.stopPropagation()}
-          onDrop={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-        >
-          <div className="working-sheet" ref={sheetRef}>
-            {progress && result === null ? (
-              <>
-                <h2 className="working-title" id="working-title">
-                  Comprimiendo
-                </h2>
-                <p className="working-name" title={probe.path}>
-                  {probe.filename}
-                </p>
-
-                <div className="working-figure">
-                  {/* El porcentaje manda: es lo único que contesta «¿cuánto
-                      falta?» desde el otro lado de la habitación. */}
-                  <span className="working-pct" aria-hidden="true">
-                    {progress.percent.toFixed(0)}
-                    <i>%</i>
-                  </span>
-                  <span className="working-side">
-                    <span className="mass-k">Escrito</span>
-                    <span className="mass-v">{formatBytes(progress.outSizeBytes)}</span>
-                  </span>
-                </div>
-
-                <div
-                  className="progress-track"
-                  role="progressbar"
-                  aria-label="Progreso de la compresión"
-                  aria-valuenow={Math.round(progress.percent)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuetext={`${Math.round(progress.percent)} %`}
-                >
-                  <div
-                    className="progress-fill"
-                    style={{ transform: `scaleX(${progress.percent / 100})` }}
-                  />
-                </div>
-
-                <div className="working-stats">
-                  {/* Hasta que FFmpeg no lleva unos segundos de trabajo no hay
-                      ni velocidad ni tiempo restante que decir. Se dice eso, en
-                      vez de dejar el hueco vacío y que parezca que se colgó. */}
-                  {progress.speed !== null ? (
-                    <span>{progress.speed.toFixed(1)}× de tiempo real</span>
-                  ) : (
-                    <span>arrancando</span>
-                  )}
-                  {progress.etaSec !== null && (
-                    <span>faltan {formatDuration(progress.etaSec)}</span>
-                  )}
-                </div>
-
-                <div className="working-acts">
-                  <button type="button" className="act act-quiet" onClick={onCancel}>
-                    <IconStop aria-hidden="true" />
-                    Detener
-                  </button>
-                  <p className="working-note">
-                    La ventana queda en pausa hasta que termine. Detener no toca el original.
-                  </p>
-                </div>
-              </>
-            ) : result?.status === 'done' ? (
-              <>
-                <h2 className="working-title" id="working-title">
-                  Listo
-                </h2>
-                {/* El nombre que salió, no el que entró: es un archivo nuevo, y
-                    es el que hay que buscar en la carpeta. */}
-                <p className="working-name" title={result.outputPath ?? ''}>
-                  {result.outputPath?.split(/[\\/]/).pop() ?? ''}
-                </p>
-
-                <div className="working-result">
-                  <Mass bytes={result.inputSizeBytes} />
-                  <IconArrow aria-hidden="true" />
-                  <Mass bytes={result.outputSizeBytes} strong />
-                  {result.ratio !== null && (
-                    <span className="mass-drop">−{Math.round((1 - result.ratio) * 100)}%</span>
-                  )}
-                </div>
-
-                {/* Las dos cosas que se hacen con un archivo recién comprimido,
-                    en el sitio donde se estuvo esperando a que apareciera.
-                    Mirarlo va primero y con peso: la cifra de arriba dice cuánto
-                    pesa, no cómo se ve, y comprobar que no se arruinó es lo
-                    único que la cifra no puede contestar. */}
-                <div className="working-acts">
-                  <button
-                    type="button"
-                    className="act act-commit"
-                    onClick={() => onWatch(result.outputPath!)}
-                  >
-                    <IconPlay aria-hidden="true" />
-                    Ver el resultado
-                  </button>
-                  <button
-                    type="button"
-                    className="act act-quiet"
-                    onClick={() => void window.videoscaler.revealInFolder(result.outputPath!)}
-                  >
-                    <IconFolder aria-hidden="true" />
-                    Ver en la carpeta
-                  </button>
-                  <button type="button" className="act act-quiet working-close" onClick={close}>
-                    Cerrar
-                  </button>
-                </div>
-              </>
-            ) : result?.status === 'canceled' ? (
-              <>
-                <h2 className="working-title" id="working-title">
-                  Se detuvo la compresión
-                </h2>
-                <p className="working-name" title={probe.path}>
-                  {probe.filename}
-                </p>
-                <p className="working-say">
-                  No se escribió nada a medias que haya que borrar, y el archivo original está
-                  intacto.
-                </p>
-                {/* Sin `working-close`: es el único botón de la fila, y no hay
-                    de qué apartarlo. */}
-                <div className="working-acts">
-                  <button type="button" className="act act-quiet" onClick={close}>
-                    Cerrar
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h2 className="working-title" id="working-title">
-                  No se pudo comprimir
-                </h2>
-                <p className="working-name" title={probe.path}>
-                  {probe.filename}
-                </p>
-                {/* El mismo texto que queda en el aviso del cuerpo: aquí para
-                    leerlo ahora, y allí para volver a leerlo después de cerrar,
-                    con el detalle técnico a un clic. */}
-                <p className="working-say">
-                  {error?.message ?? result?.error ?? 'FFmpeg terminó sin escribir el archivo.'}
-                </p>
-                <div className="working-acts">
-                  <button type="button" className="act act-quiet" onClick={close}>
-                    Cerrar
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <Working
+        progress={progress}
+        result={result}
+        error={error}
+        filename={probe.filename}
+        path={probe.path}
+        labels={{
+          running: 'Comprimiendo',
+          done: 'Listo',
+          canceled: 'Se detuvo la compresión',
+          failed: 'No se pudo comprimir'
+        }}
+        runningNote="La ventana queda en pausa hasta que termine. Detener no toca el original."
+        canceledNote="No se escribió nada a medias que haya que borrar, y el archivo original está intacto."
+        onCancel={onCancel}
+        onClose={close}
+        onWatch={onWatch}
+      />
     </>
   )
 }

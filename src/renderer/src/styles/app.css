@@ -1773,6 +1773,398 @@ input[type='range']:disabled::-webkit-slider-thumb {
   width: 84px;
 }
 
+/* --- El banco: el módulo de montaje ---------------------------------------
+ *
+ * Dos superficies, una encima de otra, y cada una con su oficio. Arriba la
+ * mesa — la misma del reproductor, oscura, porque ahí se mira. Abajo el papel
+ * — la misma hoja del resto de la ventana, clara, porque ahí se decide. Un
+ * editor con la línea de tiempo oscura sería un programa de otra familia; este
+ * la tiene en papel milimetrado, que es lo que es.
+ */
+
+.editor {
+  position: relative;
+  display: grid;
+  /* La mesa cede y el banco no: al encoger la ventana, lo primero que sobra es
+     imagen, nunca los mandos con los que se está montando. */
+  grid-template-rows: minmax(90px, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.edit-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background-color: var(--stage);
+  background-image:
+    repeating-linear-gradient(60deg, transparent 0 63px, var(--stage-line) 63px 64px),
+    repeating-linear-gradient(0deg, transparent 0 63px, var(--stage-line) 63px 64px);
+}
+
+.edit-video {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  background: var(--ink);
+  box-shadow: var(--lift-stage);
+  cursor: pointer;
+}
+
+/* Un hueco del montaje no es un fallo: es negro montado a propósito. Se dice,
+   en la letra más callada que tiene la mesa, para que nadie crea que se rompió. */
+.edit-blank {
+  margin: 0;
+  font-family: var(--spec);
+  font-size: 11px;
+  font-stretch: 82%;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.edit-hud {
+  position: absolute;
+  right: var(--s4);
+  bottom: var(--s3);
+  padding: 4px 10px;
+  color: rgba(255, 255, 255, 0.92);
+  /* El mismo velo con el que la ventana se apaga: es la tinta cálida de las
+     sombras del sistema, no un negro nuevo inventado para esta chapa. */
+  background: var(--veil);
+  backdrop-filter: blur(3px);
+}
+
+.edit-hud .tcode-total {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Los elementos de sonido: sin tamaño, sin sitio en la retícula y sin voz en el
+   lector de pantalla. Son el mezclador, no la interfaz. */
+.edit-mixer {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.edit-deck {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: var(--crease) solid var(--mountain);
+  background: var(--sheet-raised);
+  box-shadow: 0 -3px 14px rgba(20, 18, 12, 0.05);
+}
+
+.deck-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s5);
+}
+
+/* El separador de la barra de herramientas: un pliegue corto, del mismo filete
+   que todo lo demás. Agrupa sin encerrar. */
+.deck-sep {
+  width: var(--crease);
+  height: 20px;
+  margin: 0 var(--s1);
+  background: var(--mountain);
+}
+
+.deck-say {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: 0 var(--s5) var(--s3);
+}
+
+.deck-say .notice {
+  padding: var(--s2) var(--s3);
+  font-size: 12px;
+}
+
+/* La ficha del bloque elegido. Hundida, no levantada: es lo que hay *dentro* de
+   la línea de tiempo, no una hoja aparte. */
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  background: var(--sheet-sunk);
+  box-shadow: inset 0 0 0 var(--crease) var(--mountain);
+}
+
+.pick-name {
+  overflow: hidden;
+  max-width: 40ch;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--spec);
+  font-size: 11px;
+  font-stretch: 82%;
+  font-weight: 600;
+}
+
+.pick-spec {
+  font-family: var(--spec);
+  font-size: 10px;
+  font-stretch: 82%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.pick-gain {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-left: auto;
+}
+
+/* --- La línea de tiempo --------------------------------------------------- */
+
+.deck {
+  display: flex;
+  /* Tres pistas de 56 px y la regla de 26, con dos píxeles de filete. Es una
+     altura fija a propósito: la línea de tiempo no debe crecer con el material
+     ni robarle sitio a la imagen según cuántos bloques haya. */
+  height: 196px;
+  flex: none;
+  border-top: var(--crease) solid var(--mountain);
+}
+
+.deck-gutter {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 44px;
+  border-right: var(--crease) solid var(--mountain);
+  background: var(--sheet-sunk);
+}
+
+/* El hueco de la esquina, a la altura exacta de la regla: sin él, las etiquetas
+   de pista quedarían medio renglón por encima de sus filas. */
+.deck-cap {
+  height: 26px;
+  flex: none;
+  border-bottom: var(--crease) solid var(--mountain);
+}
+
+.lane-name {
+  display: flex;
+  height: 56px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-bottom: var(--crease) solid var(--mountain);
+  font-family: var(--spec);
+  font-size: 10px;
+  font-stretch: 82%;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.deck-scroll {
+  position: relative;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.deck-canvas {
+  position: relative;
+  min-width: 100%;
+  height: 100%;
+}
+
+.ruler {
+  position: relative;
+  height: 26px;
+  border-bottom: var(--crease) solid var(--mountain);
+  background: var(--sheet);
+  cursor: ew-resize;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  display: flex;
+  height: 100%;
+  align-items: center;
+  padding-left: 5px;
+  border-left: var(--crease) solid var(--mountain);
+  font-family: var(--spec);
+  font-size: 10px;
+  font-stretch: 82%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.lanes {
+  position: relative;
+}
+
+.lane {
+  position: relative;
+  border-bottom: var(--crease) solid var(--mountain);
+}
+
+/* Las pistas de sonido, un tono más hundidas que la de imagen: son el suelo del
+   banco, y la de imagen la fila que manda. */
+.lane-audio {
+  background: rgba(233, 231, 225, 0.55);
+}
+
+.tl-clip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  display: flex;
+  overflow: hidden;
+  min-width: 3px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 4px 6px;
+  background: var(--sheet-raised);
+  box-shadow: inset 0 0 0 var(--crease) var(--mountain);
+  cursor: grab;
+  user-select: none;
+}
+
+.tl-clip:active {
+  cursor: grabbing;
+}
+
+/*
+ * Imagen y sonido se distinguen por forma, no por color.
+ *
+ * El sistema tiene dos colores con significado — montaña y valle son las dos
+ * caras de una palanca de peso — y gastarlos aquí para decir «esto es audio»
+ * los dejaría queriendo decir dos cosas. Un bloque de imagen lleva la cinta de
+ * fotogramas en el canto de arriba; uno de sonido, la línea de la onda por el
+ * medio. A un metro de distancia se distinguen igual.
+ */
+.tl-clip[data-kind='video']::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 7px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--mountain-fill) 0 6px,
+    transparent 6px 10px
+  );
+  content: '';
+}
+
+.tl-clip[data-kind='audio']::before {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: var(--crease);
+  background: var(--mountain);
+  content: '';
+}
+
+.tl-clip[data-kind='audio'] {
+  background: var(--sheet);
+}
+
+/* Un bloque callado sigue estando: se apaga, no se esconde. */
+.tl-clip.is-hushed {
+  opacity: 0.55;
+}
+
+.tl-clip.is-picked {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.tl-clip-name,
+.tl-clip-len {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--spec);
+  font-size: 10px;
+  font-stretch: 82%;
+  pointer-events: none;
+}
+
+.tl-clip-name {
+  margin-top: 5px;
+  font-weight: 600;
+}
+
+.tl-clip-len {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+/* La marca del vínculo: un cuadradito en la esquina, presente sólo mientras la
+   imagen y el sonido siguen atados. Separar los bloques la apaga, que es la
+   única forma de saber de un vistazo si aún se mueven juntos. */
+.tl-clip-link {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  background: var(--mark-mountain);
+}
+
+.tl-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  cursor: ew-resize;
+}
+
+.tl-grip-start {
+  left: 0;
+}
+
+.tl-grip-end {
+  right: 0;
+}
+
+/* El tirador aparece al pasar por encima, con el mismo relleno de montaña que
+   usa cualquier control de la hoja bajo el puntero. */
+.tl-clip:hover .tl-grip {
+  background: var(--mountain-fill);
+}
+
+/*
+ * El cursor: una raya de tinta con su cabeza, cruzando la regla y las tres
+ * pistas de una pieza. Sin puntero — se pulsa lo que hay debajo, no él.
+ */
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--crease);
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.playhead::before {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  background: var(--ink);
+  content: '';
+  /* La misma muesca de 60° que llevan las teclas y las pestañas. */
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
 /* --- Foco -----------------------------------------------------------------
  *
  * clip-path recorta outline y box-shadow, así que en las formas de

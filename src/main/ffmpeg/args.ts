@@ -1,4 +1,10 @@
-import type { EncodeOptions, MediaProbe, ScaleMode, VideoCodec } from '@shared/types'
+import type {
+  EncodeOptions,
+  HardwareAccel,
+  MediaProbe,
+  ScaleMode,
+  VideoCodec
+} from '@shared/types'
 import { budgetForTargetSize, effectiveDuration as sharedDuration } from '@shared/budget'
 
 /**
@@ -27,13 +33,19 @@ const HW_ENCODER: Record<string, string | undefined> = {
   'av1:amf': 'av1_amf'
 }
 
-export function resolveEncoder(options: EncodeOptions): string {
-  const { codec, hardwareAccel } = options.video
+/** El binario que codifica, dicho en las dos únicas cosas que lo deciden. Está
+    separado de `resolveEncoder` porque el montaje elige códec sin tener unas
+    `EncodeOptions` completas detrás. */
+export function encoderFor(codec: VideoCodec, hardwareAccel: HardwareAccel): string {
   if (hardwareAccel !== 'none') {
     const hw = HW_ENCODER[`${codec}:${hardwareAccel}`]
     if (hw) return hw
   }
   return SOFTWARE_ENCODER[codec]
+}
+
+export function resolveEncoder(options: EncodeOptions): string {
+  return encoderFor(options.video.codec, options.video.hardwareAccel)
 }
 
 /** Filtro de escalado. Fuerza dimensiones pares: muchos códecs las exigen. */
@@ -58,7 +70,7 @@ function scaleFilter(scale: ScaleMode): string | null {
 /** Duración que realmente se codifica, después del recorte. */
 export const effectiveDuration = sharedDuration
 
-function qualityFlag(encoder: string, quality: number): string[] {
+export function qualityFlag(encoder: string, quality: number): string[] {
   if (encoder.endsWith('_nvenc')) return ['-rc', 'vbr', '-cq', String(quality)]
   if (encoder.endsWith('_qsv')) return ['-global_quality', String(quality)]
   if (encoder.endsWith('_amf')) return ['-rc', 'cqp', '-qp_i', String(quality), '-qp_p', String(quality)]
@@ -66,7 +78,7 @@ function qualityFlag(encoder: string, quality: number): string[] {
   return ['-crf', String(quality)]
 }
 
-function presetFlag(encoder: string, preset: string): string[] {
+export function presetFlag(encoder: string, preset: string): string[] {
   // SVT-AV1 usa presets numéricos (0 lento / 13 rápido), no nombres.
   if (encoder === 'libsvtav1') {
     const map: Record<string, string> = {
