@@ -965,13 +965,43 @@ input[type='range']:disabled::-webkit-slider-thumb {
   color: var(--ink-2);
 }
 
-/* La única acción viva de la ventana, y a su lado la única letra que hace
-   falta: qué pasa con el original si se pulsa. */
+/* El desenlace, en el sitio que ocupaba el porcentaje.
+   Es la misma figura del acta del cuerpo — sin ella, el «quedará en» que se
+   estuvo mirando toda la espera se cerraría sin decir en cuánto quedó. */
+.working-result {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin-top: var(--s2);
+  font-family: var(--spec);
+  font-size: 17px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+}
+
+.working-result .mass-v {
+  font-size: 17px;
+}
+
+.working-result .mass-v-strong {
+  font-weight: 600;
+}
+
+/* Mientras se comprime: la única acción viva de la ventana, y a su lado la
+   única letra que hace falta — qué pasa con el original si se pulsa. Al
+   terminar: las dos cosas que se hacen con el archivo nuevo, y la salida. */
 .working-acts {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s3);
   margin-top: var(--s2);
+}
+
+/* Cerrar se va al canto opuesto: no es una tercera cosa que hacer con el
+   archivo, es dejar de hacerlas. */
+.working-close {
+  margin-left: auto;
 }
 
 .working-note {
@@ -979,6 +1009,15 @@ input[type='range']:disabled::-webkit-slider-thumb {
   font-size: 11px;
   line-height: 1.45;
   color: var(--ink-3);
+}
+
+/* Cuando el desenlace no es un número: el motivo del fallo, o la promesa de que
+   el original sigue donde estaba. Eso se lee, así que no va en letra de nota. */
+.working-say {
+  margin: var(--s2) 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
 }
 
 @keyframes veil {

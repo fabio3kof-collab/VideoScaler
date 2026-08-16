@@ -16,9 +16,18 @@ const VIDEO_EXTENSIONS = new Set([
 
 type Module = 'scaler' | 'player'
 
+/*
+ * Reproducir primero, y no por orden alfabético.
+ *
+ * Un archivo recién soltado todavía no es una decisión: antes de elegir cuánto
+ * peso quitarle hay que ver qué es y cómo se ve. Abrir en las palancas obligaba
+ * a fijar un objetivo a ciegas y sólo después ir a mirar. Abriendo en la mesa,
+ * el recorrido es el que ya se hacía a mano — mirar, decidir, comprimir — y las
+ * pestañas van en ese mismo orden.
+ */
 const MODULES: ReadonlyArray<{ id: Module; label: string }> = [
-  { id: 'scaler', label: 'Reducir' },
-  { id: 'player', label: 'Reproducir' }
+  { id: 'player', label: 'Reproducir' },
+  { id: 'scaler', label: 'Reducir' }
 ]
 
 /**
@@ -40,7 +49,7 @@ export default function App(): JSX.Element {
   const [probe, setProbe] = useState<MediaProbe | null>(null)
   const [probing, setProbing] = useState(false)
   const [error, setError] = useState<FriendlyError | null>(null)
-  const [module, setModule] = useState<Module>('scaler')
+  const [module, setModule] = useState<Module>('player')
   const [dragging, setDragging] = useState(false)
   const dragDepth = useRef(0)
   const tabsRef = useRef<HTMLDivElement>(null)
@@ -78,6 +87,10 @@ export default function App(): JSX.Element {
         return null
       }
       setProbe(next)
+      // Cada archivo nuevo empieza en la mesa, venga de donde venga: del botón,
+      // de un arrastre, o del resultado recién comprimido. Quedarse en las
+      // palancas del archivo anterior sería seguir ajustando lo que ya no está.
+      setModule('player')
       return next
     } catch (err) {
       setProbe(null)
@@ -105,7 +118,7 @@ export default function App(): JSX.Element {
    */
   const onWatch = useCallback(
     async (path: string) => {
-      if (await loadFile(path)) setModule('player')
+      await loadFile(path)
     },
     [loadFile]
   )
