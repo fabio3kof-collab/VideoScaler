@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { JSX, PointerEvent as ReactPointerEvent } from 'react'
 import type { EditClip, EditProject } from '@shared/edit'
 import { clipEnd, clipLength, projectDuration } from '@shared/edit'
@@ -120,12 +120,46 @@ export function Timeline({
     []
   )
 
-  // El cursor no se sale de la vista mientras corre. Se mueve la vista lo justo
-  // para volver a meterlo, y no se centra: centrar en cada cuadro convierte la
-  // línea de tiempo en una cinta que se desliza sola y marea.
-  useEffect(() => {
+  /** El zoom con el que se colocó la vista por última vez. Sirve para saber
+      cuál de las dos cosas cambió, porque piden lo contrario la una de la otra. */
+  const placedAt = useRef(zoom)
+
+  /*
+   * Dónde se queda la vista.
+   *
+   * Son dos preguntas distintas y antes se contestaban con la misma cuenta, que
+   * es de donde salía el tumbo: mover la barra de zoom mandaba el cursor a
+   * cuarenta píxeles del canto izquierdo si se alejaba y a ochenta del derecho
+   * si se acercaba, así que el montaje daba un salto en cada píxel de arrastre y
+   * en direcciones opuestas según hacia dónde se moviera la mano.
+   *
+   * Acercarse no es un motivo para irse a otra parte del montaje: lo que se
+   * estaba mirando se queda donde está, y lo que crece a su alrededor es el
+   * detalle. Correr, en cambio, sí es un motivo para mover la vista, pero lo
+   * justo para que el cursor no se salga.
+   */
+  useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el) return
+    const before = placedAt.current
+
+    if (before !== zoom) {
+      placedAt.current = zoom
+      const width = el.clientWidth
+      const cursor = playhead * before
+      // El punto que sostiene la vista es el cursor si se está viendo — es lo
+      // que el usuario tiene los ojos puestos — y si no, el centro de lo que
+      // haya en pantalla.
+      const held =
+        cursor >= el.scrollLeft && cursor <= el.scrollLeft + width
+          ? { sec: playhead, at: cursor - el.scrollLeft }
+          : { sec: (el.scrollLeft + width / 2) / before, at: width / 2 }
+      el.scrollLeft = Math.max(0, held.sec * zoom - held.at)
+      return
+    }
+
+    // No se centra: centrar en cada cuadro convierte la línea de tiempo en una
+    // cinta que se desliza sola y marea.
     const x = playhead * zoom
     const left = el.scrollLeft
     const right = left + el.clientWidth

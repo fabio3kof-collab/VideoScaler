@@ -1604,7 +1604,7 @@ input[type='range']:disabled::-webkit-slider-thumb {
   gap: var(--s2);
 }
 
-.tool-range {
+input.tool-range {
   width: 92px;
 }
 
@@ -1743,7 +1743,11 @@ input[type='range']:disabled::-webkit-slider-thumb {
   gap: var(--s2);
 }
 
-.zoom-range {
+/* Con el selector de tipo delante, y no `.zoom-range` a secas: `input[type=…]`
+   pesa más que una clase sola, así que los tres anchos de abajo no se aplicaban
+   nunca y los mandos se quedaban con los 129 px que da Chromium por su cuenta.
+   Vale para éste, para `.tool-range` y para `.vol`. */
+input.zoom-range {
   width: 132px;
 }
 
@@ -1769,7 +1773,7 @@ input[type='range']:disabled::-webkit-slider-thumb {
     inset 0 -2px 0 var(--ink);
 }
 
-.vol {
+input.vol {
   width: 84px;
 }
 
@@ -1788,6 +1792,20 @@ input[type='range']:disabled::-webkit-slider-thumb {
   /* La mesa cede y el banco no: al encoger la ventana, lo primero que sobra es
      imagen, nunca los mandos con los que se está montando. */
   grid-template-rows: minmax(90px, 1fr) auto;
+  /*
+   * La columna, dicha y acotada.
+   *
+   * Sin esto la retícula sólo tiene una columna implícita, que es `auto` — o
+   * sea, lo que mida el hijo más ancho. Y el hijo más ancho es la línea de
+   * tiempo: sesenta segundos a cuatrocientos píxeles por segundo son veinticuatro
+   * mil, y el `overflow-x` de su marco no lo detiene porque lo que se estaba
+   * midiendo es la columna, no el marco. El editor entero se estiraba con el
+   * zoom — la mesa se iba fuera de la ventana con el video dentro, y la barra
+   * de herramientas se desenvolvía sola. Con `minmax(0, 1fr)` la columna vale
+   * el ancho que hay y ni un píxel más, y la línea de tiempo se desplaza dentro
+   * de su marco, que es lo que el marco estaba para hacer.
+   */
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
 }
@@ -1927,10 +1945,15 @@ input[type='range']:disabled::-webkit-slider-thumb {
 
 .deck {
   display: flex;
-  /* Tres pistas de 56 px y la regla de 26, con dos píxeles de filete. Es una
-     altura fija a propósito: la línea de tiempo no debe crecer con el material
-     ni robarle sitio a la imagen según cuántos bloques haya. */
-  height: 196px;
+  /*
+   * Tres pistas de 56 px y la regla de 26, con dos píxeles de filete: 196. Más
+   * los 11 de la barra de desplazamiento, que abajo se declara permanente.
+   *
+   * Sin esos once, la barra aparecía al subir el zoom y se los quitaba a las
+   * pistas por dentro: la de sonido de abajo se cortaba a media altura en
+   * cuanto el montaje pasaba del ancho de la ventana.
+   */
+  height: 207px;
   flex: none;
   border-top: var(--crease) solid var(--mountain);
 }
@@ -1969,8 +1992,42 @@ input[type='range']:disabled::-webkit-slider-thumb {
 .deck-scroll {
   position: relative;
   flex: 1;
-  overflow-x: auto;
+  /* Cero y no `auto`: un elemento flexible se niega a encoger por debajo de su
+     contenido, y el contenido de aquí es un montaje de veinticuatro mil píxeles.
+     Es la misma regla que acota la columna del editor, un piso más abajo. */
+  min-width: 0;
+  /* `scroll` y no `auto`: la barra está siempre, aunque el montaje quepa. Con
+     `auto` aparecía al pasar del ancho de la ventana y se llevaba once píxeles
+     de las pistas por dentro — la de sonido de abajo se cortaba a mitad del
+     zoom. Y `scrollbar-gutter: stable` no sirve aquí: reserva el hueco del eje
+     vertical, no el de este. Puesta siempre, la línea de tiempo mide lo mismo
+     a cualquier zoom, que es lo que una altura fija tenía que significar. */
+  overflow-x: scroll;
   overflow-y: hidden;
+}
+
+/* La barra de la línea de tiempo, del mismo pliegue que las demás de la ventana
+   y no la de Chromium: es un mando que se ve todo el rato mientras se monta. */
+.deck-scroll::-webkit-scrollbar {
+  height: 11px;
+}
+
+.deck-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.deck-scroll::-webkit-scrollbar-thumb {
+  min-width: 34px;
+  background: var(--mountain);
+  border: 3px solid var(--sheet);
+}
+
+.deck-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+}
+
+.deck-scroll::-webkit-scrollbar-thumb:active {
+  background: var(--ink-2);
 }
 
 .deck-canvas {

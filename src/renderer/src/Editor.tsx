@@ -93,6 +93,26 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
 
+/*
+ * El zoom de la línea de tiempo se mueve multiplicando, no sumando.
+ *
+ * La barra recorre de cuatro a cuatrocientos píxeles por segundo — cien veces —
+ * y repartido a partes iguales todo el trabajo cabía en el primer dedo de
+ * recorrido: el paso por defecto caía al 6 % de la barra y de ahí en adelante
+ * cualquier empujón multiplicaba la escala por tres. Repartido en proporción,
+ * cada tramo vale el mismo *factor*, que es exactamente como ya se movían las
+ * teclas − y + con su 1,3, y el paso por defecto cae hacia la mitad.
+ */
+const ZOOM_STOPS = 100
+
+function zoomSlide(z: number): number {
+  return Math.round((Math.log(z / MIN_ZOOM) / Math.log(MAX_ZOOM / MIN_ZOOM)) * ZOOM_STOPS)
+}
+
+function slideZoom(s: number): number {
+  return MIN_ZOOM * (MAX_ZOOM / MIN_ZOOM) ** (s / ZOOM_STOPS)
+}
+
 export function Editor({
   probe,
   active,
@@ -724,14 +744,14 @@ export function Editor({
               <input
                 className="zoom-range"
                 type="range"
-                min={MIN_ZOOM}
-                max={MAX_ZOOM}
+                min={0}
+                max={ZOOM_STOPS}
                 step={1}
-                value={zoom}
+                value={zoomSlide(zoom)}
                 aria-label="Zoom de la línea de tiempo"
                 aria-valuetext={`${Math.round(zoom)} píxeles por segundo`}
-                title="Píxeles por segundo (− y +)"
-                onChange={(e) => setZoom(Number(e.target.value))}
+                title="Cuánta línea de tiempo cabe en la ventana (− y +)"
+                onChange={(e) => setZoom(slideZoom(Number(e.target.value)))}
               />
             </div>
 
