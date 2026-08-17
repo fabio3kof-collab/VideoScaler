@@ -94,9 +94,13 @@ export function Timeline({
   const step = rulerStep(zoom)
   const picked = useMemo(() => new Set(selected), [selected])
 
+  // Estrictamente antes del final, y no hasta él: una marca clavada en el canto
+  // de cierre dibuja un filete que nadie ve y cuelga su rótulo entero por fuera
+  // del lienzo. Ese rótulo colgando ensanchaba el desplazamiento treinta y un
+  // píxeles, así que «Ajustar» dejaba siempre un resto de barra por recorrer.
   const ticks = useMemo(() => {
     const out: number[] = []
-    for (let t = 0; t <= duration + 4; t += step) out.push(Number(t.toFixed(3)))
+    for (let t = 0; t < duration + 4; t += step) out.push(Number(t.toFixed(3)))
     return out
   }, [duration, step])
 

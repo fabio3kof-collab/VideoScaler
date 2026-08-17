@@ -181,9 +181,13 @@ export default function App(): JSX.Element {
       onDrop={onDrop}
     >
       <header className="bar">
+        {/* El nombre va en su propia pieza porque en una ventana estrecha se
+            recoge y queda sólo la marca. Se recoge de la vista y no del
+            documento: un lector de pantalla lo sigue leyendo, que es lo que
+            distingue esconder de borrar. */}
         <span className="wordmark">
           <img className="wordmark-mark" src={logo} alt="" width={22} height={22} />
-          VideoScaler
+          <span className="wordmark-name">VideoScaler</span>
         </span>
 
         {probe && (

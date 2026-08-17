@@ -48,6 +48,18 @@ button {
 .app {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  /*
+   * La columna, acotada como las filas.
+   *
+   * Sin declararla, la única columna implícita es `auto`: lo que pida el hijo
+   * más ancho. Y bastaba con que la cabecera no cupiera en una ventana al
+   * mínimo — novecientos píxeles para novecientos cuarenta y ocho de mandos —
+   * para que ese exceso se lo llevara la ventana entera: la mesa del
+   * reproductor se iba a 948 con el video dentro, y la línea de tiempo del
+   * montaje también. La cabecera se arregla ella misma unas líneas más abajo;
+   * esto es para que un desajuste suyo no vuelva a ser el de todos.
+   */
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
   background-color: var(--sheet);
   background-image:
@@ -67,6 +79,11 @@ button {
 
 .bar {
   display: flex;
+  /* La red de seguridad: si algún día los mandos de aquí vuelven a no caber, la
+     fila se parte en dos en vez de empujar la ventana. Al ancho mínimo ya no
+     hace falta — el nombre se recoge unas líneas más abajo — pero una barra que
+     no puede desbordar por construcción no vuelve a arrastrar a nadie. */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s3);
   padding: var(--s3) var(--s5);
@@ -1114,7 +1131,11 @@ input[type='range']:disabled::-webkit-slider-thumb {
 
 .pair {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* `minmax(0, …)` y no `1fr` pelado, como en el resto de la hoja: un `1fr` se
+     niega a encoger por debajo de su contenido, y esa negativa es la que ha
+     empujado la ventana tres veces en sitios distintos. Aquí caben de sobra,
+     pero la regla vale igual escrita que aprendida. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--s2);
 }
 
@@ -2064,6 +2085,10 @@ input.vol {
 
 .ruler {
   position: relative;
+  /* Y la garantía, para cuando el montaje no dure un número redondo de pasos:
+     un rótulo que no cabe se recorta, no ensancha la línea de tiempo. Lo que
+     cuelga por fuera de la regla no es contenido que haya que poder alcanzar. */
+  overflow: hidden;
   height: 26px;
   border-bottom: var(--crease) solid var(--mountain);
   background: var(--sheet);
@@ -2348,6 +2373,35 @@ input.vol {
 }
 
 @media (max-width: 1000px) {
+  /*
+   * El nombre se recoge y queda la marca.
+   *
+   * En una ventana al mínimo la cabecera pedía novecientos cuarenta y ocho
+   * píxeles para novecientos que hay, y de las cinco piezas que la ocupan el
+   * nombre escrito es la única que no hace nada: el logo identifica igual, y el
+   * marco de la ventana ya lleva el nombre puesto. Los otros cuatro son mandos
+   * y ninguno sobra.
+   *
+   * Recogido de la vista pero no del documento: sigue siendo el nombre
+   * accesible de la cabecera, y `display: none` lo habría borrado también para
+   * quien la lee en voz alta.
+   */
+  .wordmark-name {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* El aire lateral se recoge igual que en el pie y en el transporte, que ya lo
+     hacían aquí mismo. A la cabecera se le había olvidado, y son justo los
+     veinte píxeles que la separaban de caber en una sola fila al mínimo. */
+  .bar {
+    padding: var(--s3) var(--s4);
+  }
+
   .stack {
     padding: var(--s5) var(--s4) var(--s6);
   }
