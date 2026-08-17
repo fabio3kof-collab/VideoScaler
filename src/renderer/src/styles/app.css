@@ -1751,6 +1751,20 @@ input.zoom-range {
   width: 132px;
 }
 
+/* Lo que la barra de zoom del montaje está haciendo, dicho en la unidad del
+   usuario y no en la de dentro. Ancho fijo y cifras tabulares: si el rótulo
+   creciera al arrastrar, empujaría la barra justo mientras se la usa. */
+.zoom-span {
+  /* Lo que mide el rótulo más largo, «4:41 a la vista», para que el más corto
+     no encoja la fila. */
+  min-width: 108px;
+  font-family: var(--spec);
+  font-size: 11px;
+  font-stretch: 88%;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
 .zoom-v {
   display: flex;
   align-items: center;
@@ -1814,6 +1828,18 @@ input.vol {
   position: relative;
   display: grid;
   place-items: center;
+  /*
+   * La celda, acotada a la mesa.
+   *
+   * El `max-height: 100%` del video se mide contra su celda, y la celda de una
+   * retícula sin pistas declaradas es `auto` — o sea, lo que pida el contenido.
+   * Un 720p pedía sus 656 px de alto en una mesa de 303 y el tope no recortaba
+   * nada, porque el 100 % *era* esos 656: el video se salía por abajo y lo que
+   * se veía era el trozo de arriba. Con las dos pistas en `minmax(0, 1fr)` la
+   * celda vale la mesa, y entonces el tope significa lo que dice.
+   */
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   overflow: hidden;
   background-color: var(--stage);
   background-image:

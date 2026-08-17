@@ -138,6 +138,8 @@ export function Editor({
   const [future, setFuture] = useState<EditProject[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [zoom, setZoom] = useState(28)
+  /** El ancho útil de la línea de tiempo. Lo dice ella al medirse. */
+  const [viewport, setViewport] = useState(0)
   const [playhead, setPlayhead] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [urls, setUrls] = useState<Record<string, string>>({})
@@ -580,6 +582,18 @@ export function Editor({
   const one = selected.length === 1 ? project.clips.find((c) => c.id === selected[0]) : undefined
   const cuts = project.clips.length
 
+  /*
+   * Qué dice el mando del zoom, y qué hace su botón.
+   *
+   * «Píxeles por segundo» es la unidad de dentro, no la de nadie: al lado de una
+   * barra no significa nada. Lo que sí se puede juzgar de un vistazo es cuánto
+   * montaje cabe en la ventana, que es justo lo que la barra decide. Y el botón
+   * es la respuesta de un clic a la única pregunta que se hace siempre — «que se
+   * vea todo» — con la misma palabra que ya usa el reproductor para lo mismo.
+   */
+  const span = viewport > 0 ? viewport / zoom : 0
+  const fitZoom = viewport > 0 ? clamp(viewport / Math.max(duration + 4, 12), MIN_ZOOM, MAX_ZOOM) : zoom
+
   return (
     <>
       <div className="editor">
@@ -741,18 +755,37 @@ export function Editor({
 
             <div className="tool">
               <span className="mass-k">Zoom</span>
-              <input
-                className="zoom-range"
-                type="range"
-                min={0}
-                max={ZOOM_STOPS}
-                step={1}
-                value={zoomSlide(zoom)}
-                aria-label="Zoom de la línea de tiempo"
-                aria-valuetext={`${Math.round(zoom)} píxeles por segundo`}
-                title="Cuánta línea de tiempo cabe en la ventana (− y +)"
-                onChange={(e) => setZoom(slideZoom(Number(e.target.value)))}
-              />
+              <div className="zoom">
+                <input
+                  className="zoom-range"
+                  type="range"
+                  min={0}
+                  max={ZOOM_STOPS}
+                  step={1}
+                  value={zoomSlide(zoom)}
+                  aria-label="Zoom de la línea de tiempo"
+                  aria-valuetext={
+                    span > 0 ? `${formatDuration(span)} a la vista` : 'sin medir todavía'
+                  }
+                  title="Cuánto montaje cabe en la ventana (− y +)"
+                  onChange={(e) => setZoom(slideZoom(Number(e.target.value)))}
+                />
+                <span className="zoom-span" aria-hidden="true">
+                  {span > 0 ? `${formatDuration(span)} a la vista` : '—'}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="act act-quiet act-mini"
+                onClick={() => setZoom(fitZoom)}
+                disabled={viewport === 0}
+                /* No se apaga al estar ya ajustado: arrastrando la barra se
+                   cruza ese punto todo el rato, y un botón que se enciende y se
+                   apaga bajo la mano es justo lo que hace dudar de un mando. */
+                title="Que el montaje entero quepa en la línea de tiempo"
+              >
+                Ajustar
+              </button>
             </div>
 
             <button
@@ -836,6 +869,7 @@ export function Editor({
             onBegin={begin}
             onDraft={write}
             onEnd={() => undefined}
+            onViewport={setViewport}
           />
         </div>
       </div>

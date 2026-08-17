@@ -64,7 +64,8 @@ export function Timeline({
   onSelect,
   onBegin,
   onDraft,
-  onEnd
+  onEnd,
+  onViewport
 }: {
   project: EditProject
   playhead: number
@@ -76,6 +77,10 @@ export function Timeline({
   onBegin: () => void
   onDraft: (next: EditProject) => void
   onEnd: () => void
+  /** El ancho útil de la línea de tiempo, cada vez que cambia. Lo necesita quien
+      tenga que decidir cuánto zoom hace falta para que quepa el montaje entero:
+      ese número vive aquí y sólo aquí. */
+  onViewport?: (px: number) => void
 }): JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const lanesRef = useRef<HTMLDivElement>(null)
@@ -94,6 +99,18 @@ export function Timeline({
     for (let t = 0; t <= duration + 4; t += step) out.push(Number(t.toFixed(3)))
     return out
   }, [duration, step])
+
+  // El ancho útil, medido y no supuesto: cambia con la ventana, así que se
+  // vigila en vez de leerlo una vez.
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el || !onViewport) return
+    const measure = (): void => onViewport(el.clientWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [onViewport])
 
   const timeAt = useCallback(
     (clientX: number): number => {
